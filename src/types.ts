@@ -1,0 +1,32 @@
+export type Coordinate = { latitude: number; longitude: number };
+export type Mode = 'demo' | 'gps';
+export type Budget = 5 | 10;
+export type Spot = {
+  id: string;
+  name: string;
+  category: string;
+  coordinate: Coordinate;
+  radiusMeters: number;
+  hint: string;
+  story: string;
+  lookFor: string;
+  sources: { title: string; url: string }[];
+  relatedSpotIds: string[];
+  visitMinutes: number;
+  coordinateNote?: string;
+};
+export type Destination = { id: string; name: string; subtitle: string; coordinate: Coordinate };
+export type Discovery = { spotId: string; mode: Mode; discoveredAt: string };
+export type LocationFix = Coordinate & { accuracy: number | null; timestamp: number };
+export type RouteOption = {
+  id: string;
+  kind: 'direct' | 'discovery';
+  label: string;
+  walkingSeconds: number;
+  visitSeconds: number;
+  totalSeconds: number;
+  extraSeconds: number;
+  spotIds: string[];
+  coordinates: Coordinate[];
+  source: 'demo' | 'google';
+};

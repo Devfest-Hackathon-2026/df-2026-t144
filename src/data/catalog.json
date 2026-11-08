@@ -1,0 +1,165 @@
+{
+  "spots": [
+    {
+      "id": "takase-ichino-funairi",
+      "name": "高瀬川一之船入",
+      "category": "水路",
+      "coordinate": {
+        "latitude": 35.01225,
+        "longitude": 135.77038889
+      },
+      "radiusMeters": 45,
+      "hint": "細い流れの横に、水面が広がる小さな場所。何に使ったのでしょう。",
+      "story": "高瀬川は、角倉了以・素庵の父子が開いた運河。この船入は、荷物を降ろし、舟の向きを変えるための場所でした。街角の小さな水面には、京都の暮らしを支えた物流の記憶が残っています。",
+      "lookFor": "川の横に広がる船入と、その歴史を伝える石碑。",
+      "sources": [
+        {
+          "title": "京都市・高瀬川一之船入（NA124）",
+          "url": "https://www2.city.kyoto.lg.jp/html/somu/rekishi/fm/ishibumi/html/na124.html"
+        },
+        {
+          "title": "京都市・高瀬川再生プロジェクト",
+          "url": "https://www.city.kyoto.lg.jp/kensetu/page/0000272260.html"
+        }
+      ],
+      "relatedSpotIds": [
+        "zuisenji"
+      ],
+      "visitMinutes": 1,
+      "coordinateNote": "京都市の石碑資料に掲載された世界測地系の座標を変換。史跡全体の中心ではなく石標の位置です。現地未確認。"
+    },
+    {
+      "id": "ikedaya",
+      "name": "池田屋騒動址",
+      "category": "歴史",
+      "coordinate": {
+        "latitude": 35.00911111,
+        "longitude": 135.76980556
+      },
+      "radiusMeters": 45,
+      "hint": "にぎやかな通りの小さな石碑に、幕末の一夜が刻まれています。",
+      "story": "1864年、三条の池田屋で会合していた志士たちを新選組が襲撃しました。通りに立つ石碑は、その場所を伝える目印。今の街並みを眺めながら、この一角で起きた幕末の出来事を想像してみましょう。",
+      "lookFor": "「池田屋騒動之址」と刻まれた石碑。店舗への入店は不要です。",
+      "sources": [
+        {
+          "title": "京都市・池田屋騒動址（NA033）",
+          "url": "https://www2.city.kyoto.lg.jp/somu/rekishi/fm/ishibumi/html/na033.html"
+        }
+      ],
+      "relatedSpotIds": [
+        "sanjo-giboshi"
+      ],
+      "visitMinutes": 1,
+      "coordinateNote": "京都市の石碑資料に掲載された世界測地系の座標を変換。現地未確認。現在の建物を当時の旅館とする説明ではありません。"
+    },
+    {
+      "id": "zuisenji",
+      "name": "瑞泉寺",
+      "category": "歴史",
+      "coordinate": {
+        "latitude": 35.00861111,
+        "longitude": 135.77055556
+      },
+      "radiusMeters": 45,
+      "hint": "川沿いの小さなお寺。運河をつくった人と、どんなつながりがあるのでしょう。",
+      "story": "瑞泉寺は1611年、角倉了以が豊臣秀次と一族を弔うために建てた寺です。寺の由緒は、高瀬川の工事中に荒れた墓域を見つけたことが建立のきっかけと伝えます。水運の歴史が、街の祈りにもつながっています。",
+      "lookFor": "木屋町通り沿いの門。参拝する場合は、公式サイトで開門状況を確認できます。",
+      "sources": [
+        {
+          "title": "瑞泉寺公式・秀次公と瑞泉寺",
+          "url": "https://zuisenji-temple.net/history/"
+        },
+        {
+          "title": "瑞泉寺公式・拝観とアクセス",
+          "url": "https://zuisenji-temple.net/access/"
+        },
+        {
+          "title": "京都市・瑞泉寺前の岩瀬忠震宿所跡（NA172）",
+          "url": "https://www2.city.kyoto.lg.jp/somu/rekishi/fm/ishibumi/html/na172.html"
+        }
+      ],
+      "relatedSpotIds": [
+        "takase-ichino-funairi"
+      ],
+      "visitMinutes": 1,
+      "coordinateNote": "京都市が掲載する寺前の「岩瀬忠震宿所跡」石碑の座標を入口の代理点に使用。境内中心ではなく、現地未確認。門前で発見できます。"
+    },
+    {
+      "id": "sanjo-giboshi",
+      "name": "三条大橋の擬宝珠",
+      "category": "建築",
+      "coordinate": {
+        "latitude": 35.00913889,
+        "longitude": 135.77188889
+      },
+      "radiusMeters": 45,
+      "hint": "橋の手すりの飾りを、よく見てみると。古い文字が何を伝えているでしょう。",
+      "story": "三条大橋の擬宝珠には、1590年に豊臣秀吉の命で行われた大改修を伝える銘文があります。京都市の解説では、天正時代と昭和時代の擬宝珠が混在するとされています。手すりの小さな飾りが、橋の長い歴史を伝えています。",
+      "lookFor": "手すりの上の金属製の飾りと、刻まれた文字。歩道の安全な場所で立ち止まって観察しましょう。",
+      "sources": [
+        {
+          "title": "京都市公式・京都観光Navi「三条大橋」",
+          "url": "https://ja.kyoto.travel/tourism/single02.php?category_id=9&tourism_id=173"
+        },
+        {
+          "title": "京都市・京の橋しるべ 第21号（PDF）",
+          "url": "https://www.city.kyoto.lg.jp/kensetu/cmsfiles/contents/0000149/149842/hashishirube21.pdf"
+        }
+      ],
+      "relatedSpotIds": [
+        "ekiden-monument",
+        "ikedaya"
+      ],
+      "visitMinutes": 1,
+      "coordinateNote": "京都観光Naviの埋込地図が指定する橋の代表点です。特定の擬宝珠の位置ではなく、現地未確認。駅伝の碑と近いため、同じ場所から両方に到達判定されることがあります。"
+    },
+    {
+      "id": "ekiden-monument",
+      "name": "駅伝の碑",
+      "category": "文化",
+      "coordinate": {
+        "latitude": 35.00919444,
+        "longitude": 135.77205556
+      },
+      "radiusMeters": 45,
+      "hint": "この橋のたもとから、東京まで続くある挑戦が始まりました。",
+      "story": "1917年、日本初の駅伝は三条大橋から東京・上野へ向かって始まりました。約508キロを23区間に分けた、3日間の大会です。橋のたもとの石碑は、この道が長いリレーの出発点だったことを教えてくれます。",
+      "lookFor": "三条大橋の東詰め北側にある、駅伝の始まりを伝える石碑。",
+      "sources": [
+        {
+          "title": "京都市・駅伝の碑（HI105）",
+          "url": "https://www2.city.kyoto.lg.jp/somu/rekishi/fm/ishibumi/html/hi105.html"
+        }
+      ],
+      "relatedSpotIds": [
+        "sanjo-giboshi"
+      ],
+      "visitMinutes": 1,
+      "coordinateNote": "京都市の石碑資料の座標を変換。現地未確認。三条大橋から続く関連発見として想定しており、橋と同時に到達判定されることがあります。"
+    }
+  ],
+  "destinations": [
+    {
+      "id": "city-hall",
+      "name": "京都市役所前",
+      "subtitle": "市役所前の周辺エリア・目的地は概略位置",
+      "coordinate": {
+        "latitude": 35.0116,
+        "longitude": 135.7681
+      }
+    },
+    {
+      "id": "shijo-kawaramachi",
+      "name": "四条河原町",
+      "subtitle": "四条河原町交差点の周辺・目的地は概略位置",
+      "coordinate": {
+        "latitude": 35.0037,
+        "longitude": 135.7697
+      }
+    }
+  ],
+  "demoOrigin": {
+    "latitude": 35.0093,
+    "longitude": 135.7734
+  }
+}
