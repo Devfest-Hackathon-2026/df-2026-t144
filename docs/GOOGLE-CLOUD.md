@@ -68,6 +68,16 @@ Google Routesの結果を地図に重ねる場合はGoogle Mapを使用します
 
 現在のサーバーは開発用です。ユーザー認証やApp Checkによるアプリ検証は未導入で、公開インターネット向けの無認証APIとして運用する状態ではありません。プロセス内の呼出回数上限は再起動でリセットされ、複数インスタンス間で共有されません。Google Cloud側でもAPI割当を設定し、公開する際は認証・永続的な制限・監視を追加してください。
 
-Cloud Run向けの `server/Dockerfile` は用意しました。ビルドコンテキストはプロジェクト直下です。公開や課金を伴うコマンドは自動実行していません。外部公開前には、利用規約・プライバシーポリシー、位置情報送信の説明、Google帰属、実際の通行可否を確認する必要があります。
+Cloud Run用の `Dockerfile` はリポジトリ直下にあり、Web版とAPIを1つのサービスにまとめる。手順は [DEPLOY.md](DEPLOY.md)。公開や課金を伴うコマンドは自動実行していない。外部公開前には、利用規約・プライバシーポリシー、位置情報送信の説明、Google帰属、実際の通行可否を確認する必要がある。
 
-Geminiはこの版に接続していません。スポットの解説は一次資料を基に編集した固定文です。後から導入する場合も、サーバー側の秘密キーと出典を限定した入力を使います。
+## Gemini(Vertex AI)
+
+Cloud Runではサービスアカウントのトークンで `gemini-3.8-flash`(リージョン `global`)を呼ぶ。キーは持たない。ローカルで試すときは `.env` に `GOOGLE_CLOUD_PROJECT` と `GEMINI_ACCESS_TOKEN`(`gcloud auth print-access-token` の出力)を入れる。どちらもないとGeminiは無効になり、アプリは固定文で動く。
+
+| API | 入力 | 出力 | Geminiが使えないとき |
+| --- | --- | --- | --- |
+| `POST /v1/interests` | `{ text }`(80字以内) | `{ topicIds, reply, source }` | キーワード照合の結果(`source: "keywords"`) |
+| `POST /v1/teaser` | `{ fromSpotId, toSpotId, topicIds }` | `{ text, usedFactIds, source }` | カタログの固定文(`source: "fixed"`) |
+| `POST /v1/routes` | 従来の項目 + 任意の `topicIds` | 従来どおり | — |
+
+Geminiの出力は `server/ai.mjs` の `checkGeneratedText` で検査し、通らなければ捨てる。スポットの解説本文は事前生成と人の照合を経たものだけを出す(`pnpm stories:draft` → `src/data/stories.json` を照合 → `pnpm stories:check`)。
