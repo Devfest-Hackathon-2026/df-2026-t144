@@ -159,5 +159,5 @@ export default function DiscoveryMap(props: MapProps) {
 const styles = StyleSheet.create({
   frame: { flex: 1, overflow: 'hidden', backgroundColor: c.mapGround },
   loading: { alignItems: 'center', justifyContent: 'center' },
-  legend: { position: 'absolute', left: 8, bottom: 64, backgroundColor: 'rgba(11, 22, 49, 0.85)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.s },
+  legend: { position: 'absolute', left: 8, bottom: 92, backgroundColor: 'rgba(11, 22, 49, 0.85)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.s },
 });

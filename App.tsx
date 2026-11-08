@@ -18,7 +18,7 @@ import { useLocation } from './src/useLocation';
 import { fetchRoutes } from './src/routesClient';
 import { apiConfigured } from './src/apiClient';
 import { colors as c, radius, text as t } from './src/theme';
-import { Button, Icon, QPin, Shards, Skyline, Slant, Tag, installWebStyles } from './src/ui';
+import { Burst, Button, Icon, QPin, Shards, Skyline, Slant, Tag, installWebStyles } from './src/ui';
 import type { Budget, Discovery, LocationFix, Mode, RouteOption, Spot } from './src/types';
 
 installWebStyles();
@@ -140,6 +140,7 @@ function Michi() {
   }
   const changeMode = (value: Mode) => { if (saving) return; setMode(value); setDemoPosition(DEMO_ORIGIN); setConfirmReset(false); };
   const openSpot = (id: string, card = false) => { setCardView(card); setSelectedId(id); };
+  const startWalk = () => { setWalking(true); setDemoPosition(DEMO_ORIGIN); };
   function startFirstDiscovery() {
     const firstId = demoRoutes.find(option => option.kind === 'discovery')?.spotIds[0];
     if (!firstId) return;
@@ -202,9 +203,17 @@ function Michi() {
               </Pressable>}
             </>}
           </View>
-          <View style={s.mapBar} pointerEvents="none">
-            <Text style={[t.std16B170, { color: c.white }]}>{walking ? 'このルートの残り' : 'このルートの発見'}</Text>
-            <Text style={[t.display26, { color: c.redText }]}>{walking ? (route?.spotIds.length ?? 0) - progress : route?.spotIds.length ?? 0}<Text style={[t.std16B170, { color: c.white }]}> 件</Text></Text>
+          <View style={s.mapBar}>
+            <View pointerEvents="none" style={s.mapBarCount}>
+              <Text style={[t.note14B150, { color: c.mist }]}>{walking ? 'このルートの残り' : 'このルートの発見'}</Text>
+              <Text style={[t.display26, { color: c.redText }]}>{walking ? (route?.spotIds.length ?? 0) - progress : route?.spotIds.length ?? 0}<Text style={[t.std16B170, { color: c.white }]}> 件</Text></Text>
+            </View>
+            {!walking && routes.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel={route?.kind === 'discovery' ? '発見ルートで出発する' : '通常ルートで出発する'} onPress={startWalk} style={({ pressed }) => [s.barCta, pressed && { backgroundColor: c.redDark }]}>
+              <View style={s.unskew}><Text style={[t.oln16B100, { color: c.white }]}>出発する</Text><Icon name="chevron" size={18} /></View>
+            </Pressable>}
+            {walking && nextSpot && <Pressable accessibilityRole="button" accessibilityLabel={`次の「？」を開く。${nextSpot.hint}`} onPress={() => openSpot(nextSpot.id)} style={({ pressed }) => [s.barCta, pressed && { backgroundColor: c.redDark }]}>
+              <View style={s.unskew}><Text style={[t.oln16B100, { color: c.white }]}>次の「？」へ</Text><Icon name="chevron" size={18} /></View>
+            </Pressable>}
           </View>
         </View>
 
@@ -237,7 +246,7 @@ function Michi() {
               </Pressable>;
             })}</View>
             {routes.length > 0 ? <>
-              <Button label={route?.kind === 'discovery' ? '発見ルートで出発する' : '通常ルートで出発する'} onPress={() => { setWalking(true); setDemoPosition(DEMO_ORIGIN); }} />
+              <Button label={route?.kind === 'discovery' ? '発見ルートで出発する' : '通常ルートで出発する'} onPress={startWalk} />
               {mode === 'gps' && <Button label={routesLoading ? '経路を計算しています' : '現在地からルートを再計算する'} variant="ghost" onPress={() => void loadRoutes()} disabled={routesLoading} />}
             </> : mode === 'gps' && <View style={s.card}>
               <Text style={[t.std18B160, { color: c.white }]}>{apiConfigured ? '現在地から寄り道ルートを探す' : '近くの「？」を探す'}</Text>
@@ -371,30 +380,23 @@ function SpotDetail({ spot, mode, discovered, fix, saving, loaded, onClose, onDi
   if (!discovered) return <>
     {header}
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.detailContent}>
-      <CameraScan spot={spot} eligible={unlock.eligible} camera={camera} onMatched={onCameraMatch}>
-        <View style={s.callout}>
+      <CameraScan spot={spot} eligible={unlock.eligible} camera={camera} saving={saving} loaded={loaded} onDiscover={onDiscover} onMatched={onCameraMatch}
+        banner={<View style={s.callout}>
           <Text style={[t.display18, { color: c.white }]}>{unlock.eligible ? '何か見つかった…！' : unlock.distanceMeters === null ? '現在地を待っています' : `「？」まで約${Math.round(unlock.distanceMeters)}m`}</Text>
           <Text style={[t.std16N170, { color: c.white }]}>{unlock.eligible ? 'この場所の物語を解き明かそう。' : unlock.reason}</Text>
-        </View>
+        </View>}>
+        <View style={s.hintBox}><Text style={[t.note14B150, { color: c.redText }]}>ヒント</Text><Text style={[t.std18B160, { color: c.white }]}>{spot.hint}</Text></View>
+        {locationHelp}
+        {mode === 'demo' && !unlock.eligible && <Button label="デモでこの場所へ移動" variant="light" icon="pin" onPress={onMove} />}
       </CameraScan>
-      <View style={s.hintBox}><Text style={[t.note14B150, { color: c.redText }]}>ヒント</Text><Text style={[t.std18B160, { color: c.white }]}>{spot.hint}</Text></View>
-      {locationHelp}
-      {mode === 'demo' && !unlock.eligible && <View style={{ gap: 8 }}><Button label="デモでこの場所へ移動" variant="light" icon="pin" onPress={onMove} /><Text style={[t.note14N150, { color: c.muted, textAlign: 'center' }]}>実際には移動しません。体験用に現在地を動かします。</Text></View>}
-      <View style={s.shutterWrap}>
-        <Pressable accessibilityRole="button" accessibilityLabel="発見する" accessibilityState={{ disabled: !unlock.eligible || !loaded, busy: saving }} disabled={!unlock.eligible || !loaded || saving} onPress={onDiscover}
-          style={({ pressed }) => [s.shutter, (!unlock.eligible || !loaded) && s.shutterOff, pressed && { transform: [{ scale: .94 }] }]}>
-          {saving ? <ActivityIndicator color={c.red} /> : <View style={[s.shutterInner, (!unlock.eligible || !loaded) && { backgroundColor: c.line }]} />}
-        </Pressable>
-        <Text style={[t.std16B170, { color: unlock.eligible ? c.white : c.muted }]}>発見する</Text>
-        <Text style={[t.note14N150, { color: c.muted }]}>{unlock.eligible ? '押すと物語が開き、発見カードがもらえます。' : '「？」の近くまで行くと押せます。'}</Text>
-      </View>
     </ScrollView>
   </>;
 
   return <>
     {header}
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.detailContent}>
-      <View style={{ gap: 6 }}>
+      <View style={s.discoveredHead}>
+        <View style={s.burst} pointerEvents="none"><Burst size={220} /></View>
         <Slant color={c.red}><Text style={[t.display32, { color: c.white }]}>発見！</Text></Slant>
         <Slant style={{ marginLeft: 16 }}><Text style={[t.display22, { color: c.navy }]} accessibilityRole="header">{spot.name}</Text></Slant>
       </View>
@@ -476,7 +478,9 @@ const s = StyleSheet.create({
   compareDirectActive: { backgroundColor: '#ECEFF5' },
   compareDiscovery: { backgroundColor: c.red },
   compareDiscoveryIdle: { opacity: .75 },
-  mapBar: { position: 'absolute', left: 10, right: 10, bottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(11, 22, 49, 0.92)', borderWidth: 1, borderColor: c.line, borderRadius: radius.full, paddingHorizontal: 18, paddingVertical: 4 },
+  mapBar: { position: 'absolute', left: 10, right: 10, bottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, backgroundColor: 'rgba(11, 22, 49, 0.94)', borderWidth: 1, borderColor: c.line, borderRadius: radius.m, paddingLeft: 16, paddingRight: 8, paddingVertical: 8 },
+  mapBarCount: { flexShrink: 1 },
+  barCta: { minHeight: 48, paddingHorizontal: 18, justifyContent: 'center', backgroundColor: c.red, transform: [{ skewX: '-10deg' }] },
   section: { paddingHorizontal: 16, paddingTop: 12, gap: 16 },
   guide: { backgroundColor: c.navyCard, borderWidth: 1, borderColor: c.line, borderRadius: radius.m, padding: 16, gap: 12 },
   guideStep: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -505,12 +509,10 @@ const s = StyleSheet.create({
   close: { width: 48, height: 48, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: c.navyCard },
   modalNotice: { backgroundColor: c.red, padding: 12, borderRadius: radius.m },
   detailContent: { paddingBottom: 24, gap: 16 },
+  discoveredHead: { gap: 6, paddingTop: 24, paddingBottom: 12 },
+  burst: { position: 'absolute', top: -16, left: -36, opacity: 0.9 },
   callout: { marginTop: -44, marginHorizontal: 8, backgroundColor: '#050B1C', borderLeftWidth: 6, borderLeftColor: c.red, padding: 12, transform: [{ skewX: '-6deg' }], gap: 2 },
   hintBox: { borderLeftWidth: 4, borderLeftColor: c.red, paddingLeft: 12, gap: 4 },
-  shutterWrap: { alignItems: 'center', gap: 6, marginTop: 4 },
-  shutter: { width: 84, height: 84, borderRadius: 42, borderWidth: 5, borderColor: c.white, alignItems: 'center', justifyContent: 'center' },
-  shutterOff: { borderColor: c.line },
-  shutterInner: { width: 62, height: 62, borderRadius: 31, backgroundColor: c.red },
   paper: { backgroundColor: c.paper, borderRadius: radius.m, overflow: 'hidden' },
   paperArt: { height: 180 },
   lookFor: { backgroundColor: c.navyCard, borderRadius: radius.m, padding: 14, gap: 4, borderWidth: 1, borderColor: c.line },

@@ -107,6 +107,18 @@ export function Skyline({ height = 90, color = c.navyRaised }: { height?: number
   </Svg>;
 }
 
+/** Radiating rays and sparkles behind the "発見！" headline. Purely visual. */
+export function Burst({ size = 220 }: { size?: number }) {
+  const rays = Array.from({ length: 14 }, (_, i) => {
+    const a = (i / 14) * Math.PI * 2; const b = a + Math.PI / 18;
+    return `M 100 100 L ${100 + Math.cos(a) * 100} ${100 + Math.sin(a) * 100} L ${100 + Math.cos(b) * 100} ${100 + Math.sin(b) * 100} Z`;
+  });
+  return <Svg width={size} height={size} viewBox="0 0 200 200" pointerEvents="none">
+    {rays.map((d, i) => <Path key={i} d={d} fill={i % 2 ? c.white : c.red} opacity={i % 2 ? 0.12 : 0.35} />)}
+    {[[38, 46, 9], [168, 64, 7], [150, 168, 6]].map(([x, y, r]) => <Path key={`${x}`} d={`M ${x} ${y - r * 2} L ${x + r * 0.5} ${y - r * 0.5} L ${x + r * 2} ${y} L ${x + r * 0.5} ${y + r * 0.5} L ${x} ${y + r * 2} L ${x - r * 0.5} ${y + r * 0.5} L ${x - r * 2} ${y} L ${x - r * 0.5} ${y - r * 0.5} Z`} fill={c.white} />)}
+  </Svg>;
+}
+
 /** Small five-story pagoda used as the destination marker. */
 export function Pagoda({ size = 34 }: { size?: number }) {
   return <Svg width={size} height={size * 1.25} viewBox="0 0 32 40">
