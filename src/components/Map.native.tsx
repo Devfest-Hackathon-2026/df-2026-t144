@@ -4,7 +4,7 @@ import Constants from 'expo-constants';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import type { MapProps } from './Map.types';
 import { colors as c, radius, text as t } from '../theme';
-import { QPin } from '../ui';
+import { Pagoda, QPin } from '../ui';
 
 // Night style for Google Maps on Android / iOS development builds.
 const DARK_STYLE = [
@@ -46,8 +46,8 @@ export default function DiscoveryMap(props: MapProps) {
           <View style={props.selectedId === spot.id && { transform: [{ scale: 1.2 }] }}><QPin done={done} size={36} /></View>
         </Marker>;
       })}
-      <Marker coordinate={props.destination.coordinate} anchor={{ x: .5, y: .5 }}>
-        <View style={styles.flag}><Text style={[t.note14B150, { color: c.navy }]}>目的地</Text></View>
+      <Marker coordinate={props.destination.coordinate} anchor={{ x: .5, y: 1 }} accessibilityLabel={`目的地 ${props.destination.name}`} tracksViewChanges={false}>
+        <Pagoda size={34} />
       </Marker>
       {props.position && <Marker coordinate={props.position} anchor={{ x: .5, y: .5 }}><View style={styles.position}><View style={styles.dot} /></View></Marker>}
     </MapView>
@@ -55,7 +55,6 @@ export default function DiscoveryMap(props: MapProps) {
 }
 const styles = StyleSheet.create({
   frame: { flex: 1, backgroundColor: c.mapGround },
-  flag: { backgroundColor: c.white, borderWidth: 2, borderColor: c.red, paddingHorizontal: 6 },
   position: { width: 30, height: 30, backgroundColor: `${c.user}44`, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   dot: { width: 16, height: 16, borderRadius: 8, backgroundColor: c.user, borderWidth: 3, borderColor: c.white },
   fallback: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: c.navyCard, gap: 8, borderRadius: radius.m },

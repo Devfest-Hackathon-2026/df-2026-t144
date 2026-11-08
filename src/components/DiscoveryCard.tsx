@@ -1,21 +1,29 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import Art from './Art';
 import { colors as c, radius, text as t } from '../theme';
 import { Icon } from '../ui';
 import type { Spot } from '../types';
 
-type Props = { spot: Spot; number: number; subtitle: string; discoveredAt: string | null; compact?: boolean };
+type Props = { spot: Spot; number: number; discoveredAt: string | null; compact?: boolean };
 
-/** The collectible "発見カード" on washi paper with a red seal. */
-export default function DiscoveryCard({ spot, number, subtitle, discoveredAt, compact = false }: Props) {
+function Maple({ size = 26, rotate = 0, opacity = 1 }: { size?: number; rotate?: number; opacity?: number }) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24" style={{ transform: [{ rotate: `${rotate}deg` }], opacity }}>
+    <Path d="M 12 1 L 13.6 6.5 L 17.8 3.6 L 16.6 8.6 L 22.5 8 L 18.4 12 L 21 14.6 L 15 14.6 L 12.8 18 L 12.8 23 H 11.2 V 18 L 9 14.6 L 3 14.6 L 5.6 12 L 1.5 8 L 7.4 8.6 L 6.2 3.6 L 10.4 6.5 Z" fill={c.red} />
+  </Svg>;
+}
+
+/** The collectible "発見カード" on washi paper with maple leaves and a red seal. */
+export default function DiscoveryCard({ spot, number, discoveredAt, compact = false }: Props) {
   const date = discoveredAt ? new Date(discoveredAt) : null;
   const dateText = date ? `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}` : '';
-  return <View style={[s.card, compact && s.compact]} accessibilityLabel={`発見カード No.${String(number).padStart(3, '0')} ${spot.name}`}>
+  return <View style={[s.card, compact && s.compact]} accessibilityLabel={`発見カード No.${String(number).padStart(3, '0')} ${spot.name}。${spot.tagline}`}>
     <View style={s.inner}>
+      {!compact && <View style={s.maples} pointerEvents="none"><Maple size={30} rotate={-20} /><Maple size={20} rotate={25} opacity={0.8} /></View>}
       <Text style={[t.note14B150, s.number]}>No.{String(number).padStart(3, '0')}</Text>
       <Text style={[compact ? t.display18 : t.display26, s.title]} numberOfLines={2}>{spot.name}</Text>
-      {!compact && <Text style={[t.note14N150, s.subtitle]}>— {subtitle} —</Text>}
+      {!compact && <Text style={[t.note14N150, s.subtitle]}>— {spot.tagline} —</Text>}
       <View style={[s.art, compact && { height: 84 }]}><Art category={spot.category} height={compact ? 84 : 150} /></View>
       <View style={s.footer}>
         <View style={{ gap: 2 }}>
@@ -32,6 +40,7 @@ const s = StyleSheet.create({
   card: { backgroundColor: c.paper, borderRadius: radius.m, padding: 8, borderWidth: 2, borderColor: c.paperDeep },
   compact: { padding: 4 },
   inner: { borderWidth: 1.5, borderColor: '#B89B6E', borderRadius: radius.s, padding: 12, gap: 6 },
+  maples: { position: 'absolute', top: -6, right: -4, flexDirection: 'row', alignItems: 'flex-start' },
   number: { color: c.sepia },
   title: { color: c.ink, textAlign: 'center' },
   subtitle: { color: c.sepia, textAlign: 'center' },

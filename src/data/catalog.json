@@ -88,6 +88,7 @@
     {
       "id": "takase-ichino-funairi",
       "name": "高瀬川一之船入",
+      "tagline": "荷を運んだ、都の水の道",
       "category": "水路",
       "coordinate": {
         "latitude": 35.01225,
@@ -150,6 +151,7 @@
     {
       "id": "ikedaya",
       "name": "池田屋騒動址",
+      "tagline": "石碑に残る、幕末の一夜",
       "category": "歴史",
       "coordinate": {
         "latitude": 35.00911111,
@@ -201,6 +203,7 @@
     {
       "id": "zuisenji",
       "name": "瑞泉寺",
+      "tagline": "運河を開いた人が建てた寺",
       "category": "歴史",
       "coordinate": {
         "latitude": 35.00861111,
@@ -266,6 +269,7 @@
     {
       "id": "sanjo-giboshi",
       "name": "三条大橋の擬宝珠",
+      "tagline": "手すりに刻まれた秀吉の改修",
       "category": "建築",
       "coordinate": {
         "latitude": 35.00913889,
@@ -324,6 +328,7 @@
     {
       "id": "ekiden-monument",
       "name": "駅伝の碑",
+      "tagline": "日本初の駅伝、その出発点",
       "category": "文化",
       "coordinate": {
         "latitude": 35.00919444,

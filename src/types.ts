@@ -8,6 +8,8 @@ export type Fact = { id: string; text: string; sourceIndex: number };
 export type Spot = {
   id: string;
   name: string;
+  /** One line for the discovery card. Must stay within what `facts` say. */
+  tagline: string;
   category: string;
   coordinate: Coordinate;
   radiusMeters: number;

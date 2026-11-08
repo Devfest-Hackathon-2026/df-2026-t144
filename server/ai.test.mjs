@@ -25,6 +25,8 @@ test('catalog facts, topics and notes are consistent', () => {
     assert.ok(spot.topics.length > 0 && spot.topics.every((id) => topicIds.has(id)), spot.id);
     for (const id of spot.relatedSpotIds) assert.ok(spot.relatedNotes[id], `${spot.id} -> ${id} note`);
     assert.ok(spot.spoilerWords.length > 0);
+    // The card subtitle must fit one line on a 360px-wide phone.
+    assert.ok(typeof spot.tagline === 'string' && spot.tagline.length > 0 && spot.tagline.length <= 14, `${spot.id} tagline`);
   }
 });
 

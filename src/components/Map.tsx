@@ -13,6 +13,14 @@ const PIN_SVG = (done: boolean) => `<svg width="40" height="46" viewBox="0 0 40 
     : '<path d="M 15 13 C 15 8 25 8 25 13 C 25 17 20 17 20 21 M 20 25.5 L 20 26" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/>'}
 </svg>`;
 
+// Five-story pagoda for the destination (32x40), shared by the Google map and the schematic.
+const PAGODA_ROOFS = [0, 1, 2, 3].map((i) => { const y = 6 + i * 7; const w = 8 + i * 2.5; return `M ${16 - w} ${y + 4} Q 16 ${y - 2} ${16 + w} ${y + 4} L ${16 + w * 0.6} ${y + 7} H ${16 - w * 0.6} Z`; });
+const PAGODA_SVG = `<svg width="38" height="48" viewBox="0 0 32 40" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 16 1 V 6" stroke="#fff" stroke-width="1.5"/>
+  ${PAGODA_ROOFS.map((d) => `<path d="${d}" fill="${c.navy}" stroke="#fff" stroke-width="1.2"/>`).join('')}
+  <rect x="9" y="34" width="14" height="4" fill="${c.red}" stroke="#fff" stroke-width="1.2"/>
+</svg>`;
+
 let mapsLoader: Promise<any> | null = null;
 function loadGoogleMaps(key: string): Promise<any> {
   const w = window as any;
@@ -84,7 +92,8 @@ function GoogleMap(props: MapProps & { apiKey: string; onFail: () => void }) {
       add(new maps.marker.AdvancedMarkerElement({ map: map.current, position: position(spot.coordinate), content, zIndex: props.selectedId === spot.id ? 10 : 1 }));
     }
     const flag = document.createElement('div');
-    flag.innerHTML = `<div style="background:#fff;color:${c.navy};font:700 14px 'Noto Sans JP',sans-serif;padding:4px 8px;border:2px solid ${c.red};white-space:nowrap">目的地 ${props.destination.name}</div>`;
+    flag.innerHTML = PAGODA_SVG;
+    flag.setAttribute('aria-label', `目的地 ${props.destination.name}`);
     add(new maps.marker.AdvancedMarkerElement({ map: map.current, position: position(props.destination.coordinate), content: flag, zIndex: 5 }));
     if (props.position) {
       const dot = document.createElement('div');
@@ -116,7 +125,11 @@ function Schematic(props: MapProps) {
       <SvgText x="178" y="46" fontSize="14" fill={c.muted}>高瀬川</SvgText>
       <SvgText x="20" y="164" fontSize="14" fill={c.muted}>三条通</SvgText>
       {points && <><Polyline points={points} fill="none" stroke={c.red} strokeWidth="7" strokeLinejoin="round" /><Polyline points={points} fill="none" stroke="#FFFFFF" strokeWidth="2.5" strokeDasharray="4 7" strokeLinejoin="round" /></>}
-      <G><Rect x={destination.x - 9} y={destination.y - 9} width="18" height="18" fill="#FFFFFF" stroke={c.red} strokeWidth="3" /></G>
+      <G transform={`translate(${destination.x - 19} ${destination.y - 44}) scale(1.2)`}>
+        <Path d="M 16 1 V 6" stroke="#FFFFFF" strokeWidth={1.5} />
+        {PAGODA_ROOFS.map((d) => <Path key={d} d={d} fill={c.navy} stroke="#FFFFFF" strokeWidth={1.2} />)}
+        <Rect x={9} y={34} width={14} height={4} fill={c.red} stroke="#FFFFFF" strokeWidth={1.2} />
+      </G>
       {props.spots.map(spot => {
         const actual = project(spot.coordinate.latitude, spot.coordinate.longitude);
         const p = spot.id === 'ekiden-monument' ? { x: actual.x + 26, y: actual.y - 22 } : actual;

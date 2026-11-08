@@ -1,10 +1,10 @@
 import React from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import Svg, { Circle, G, Path, Rect } from 'react-native-svg';
 import { colors as c, radius, text as t } from './theme';
 
-export type IconName = 'map' | 'book' | 'chevron' | 'pin' | 'close' | 'check' | 'share' | 'bookmark' | 'sparkle' | 'calendar' | 'back';
+export type IconName = 'map' | 'book' | 'chevron' | 'pin' | 'close' | 'check' | 'share' | 'bookmark' | 'sparkle' | 'calendar' | 'back' | 'user' | 'walk';
 
 export function Icon({ name, color = c.white, size = 24 }: { name: IconName; color?: string; size?: number }) {
   return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -19,6 +19,8 @@ export function Icon({ name, color = c.white, size = 24 }: { name: IconName; col
     {name === 'bookmark' && <Path d="M 6 3 H 18 V 21 L 12 16 L 6 21 Z" />}
     {name === 'sparkle' && <Path d="M 12 2 L 14 10 L 22 12 L 14 14 L 12 22 L 10 14 L 2 12 L 10 10 Z" fill={color} />}
     {name === 'calendar' && <><Rect x={3} y={5} width={18} height={16} rx={2} /><Path d="M 3 10 H 21 M 8 3 V 7 M 16 3 V 7" /></>}
+    {name === 'user' && <><Circle cx={12} cy={8} r={4} /><Path d="M 4 21 C 4 16 8 14 12 14 C 16 14 20 16 20 21" /></>}
+    {name === 'walk' && <><Circle cx={13} cy={4} r={2} /><Path d="M 9 21 L 11 15 L 14 17 V 21 M 11 15 L 12 9 L 16 12 L 19 12 M 12 9 L 8 11 L 6 14" /></>}
   </Svg>;
 }
 
@@ -83,6 +85,33 @@ export function Shards({ width = 400, height = 160, opacity = 1 }: { width?: num
     <Path d={`M ${width * 0.78} ${height * 0.42} L ${width} ${height * 0.3} L ${width} ${height * 0.5} Z`} fill={c.red} opacity={0.85} />
     <Path d={`M ${width * 0.62} ${height * 0.05} L ${width * 0.9} ${height * 0.02} L ${width * 0.66} ${height * 0.1} Z`} fill={c.white} opacity={0.5} />
     <Path d={`M 0 ${height * 0.86} L ${width * 0.18} ${height * 0.78} L ${width * 0.05} ${height * 0.95} Z`} fill={c.red} opacity={0.7} />
+  </Svg>;
+}
+
+/** Kyoto skyline silhouette (pagoda, roofs, pines) for headers. Purely visual. */
+export function Skyline({ height = 90, color = c.navyRaised }: { height?: number; color?: string }) {
+  return <Svg width="100%" height={height} viewBox="0 0 400 90" preserveAspectRatio="xMaxYMax slice" style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }} pointerEvents="none">
+    <Path d="M 0 90 V 70 L 18 62 L 36 70 V 64 L 58 56 L 80 64 V 72 L 104 66 L 126 72 V 90 Z" fill={color} />
+    <Path d="M 120 90 V 76 Q 140 60 160 74 Q 172 58 190 72 V 90 Z" fill={color} opacity={0.8} />
+    <G transform="translate(318 0)">
+      <Path d="M 22 4 V 14" stroke={color} strokeWidth={2} />
+      {[0, 1, 2, 3, 4].map((i) => {
+        const y = 14 + i * 14; const w = 18 + i * 5;
+        return <G key={i}><Path d={`M ${22 - w} ${y + 6} Q ${22} ${y - 4} ${22 + w} ${y + 6} Z`} fill={color} /><Rect x={22 - w * 0.55} y={y + 6} width={w * 1.1} height={8} fill={color} /></G>;
+      })}
+      <Rect x={2} y={84} width={40} height={6} fill={color} />
+    </G>
+    <Path d="M 196 90 V 74 L 226 64 L 256 74 V 68 L 290 58 L 316 68 V 90 Z" fill={color} opacity={0.9} />
+    <Path d="M 372 90 V 66 Q 384 52 396 66 V 90 Z M 380 90 V 60 Q 392 46 400 58 V 90 Z" fill={color} opacity={0.7} />
+  </Svg>;
+}
+
+/** Small five-story pagoda used as the destination marker. */
+export function Pagoda({ size = 34 }: { size?: number }) {
+  return <Svg width={size} height={size * 1.25} viewBox="0 0 32 40">
+    <Path d="M 16 1 V 6" stroke={c.white} strokeWidth={1.5} />
+    {[0, 1, 2, 3].map((i) => { const y = 6 + i * 7; const w = 8 + i * 2.5; return <Path key={i} d={`M ${16 - w} ${y + 4} Q 16 ${y - 2} ${16 + w} ${y + 4} L ${16 + w * 0.6} ${y + 7} H ${16 - w * 0.6} Z`} fill={c.navy} stroke={c.white} strokeWidth={1.2} />; })}
+    <Rect x={9} y={34} width={14} height={4} fill={c.red} stroke={c.white} strokeWidth={1.2} />
   </Svg>;
 }
 
