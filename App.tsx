@@ -5,10 +5,14 @@ import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import DiscoveryMap from './src/components/Map';
-import { SPOTS, DESTINATIONS, DEMO_ORIGIN } from './src/data/spots';
+import InterestPicker from './src/components/InterestPicker';
+import RelatedTeaser from './src/components/RelatedTeaser';
+import { SPOTS, DESTINATIONS, DEMO_ORIGIN, STORIES, TOPICS } from './src/data/spots';
 import { addDiscovery, createDemoRoutes, getUnlockState, sanitizeDiscoveries } from './src/domain';
+import { pickStory, rankSpots, topicScore } from './src/interests';
 import { useLocation } from './src/useLocation';
-import { fetchRoutes, routesServerUrl } from './src/routesClient';
+import { fetchRoutes } from './src/routesClient';
+import { apiConfigured } from './src/apiClient';
 import { colors as c } from './src/theme';
 import type { Budget, Discovery, LocationFix, Mode, RouteOption, Spot } from './src/types';
 
@@ -64,17 +68,18 @@ function Michi() {
   const [routeWarnings, setRouteWarnings] = useState<string[]>([]);
   const [routesLoading, setRoutesLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
+  const [topicIds, setTopicIds] = useState<string[]>([]);
   const routeRequest = useRef(0);
   const location = useLocation(mode === 'gps');
   const destination = DESTINATIONS.find(d => d.id === destinationId)!;
-  const demoRoutes = useMemo(() => createDemoRoutes(destination, budget, SPOTS, DEMO_ORIGIN), [destinationId, budget]);
+  const demoRoutes = useMemo(() => createDemoRoutes(destination, budget, SPOTS, DEMO_ORIGIN, topicIds), [destinationId, budget, topicIds]);
   const routes = mode === 'demo' ? demoRoutes : googleRoutes ?? [];
   const route = routes.find(r => r.kind === selectedKind) ?? routes[0] ?? null;
   const modeDiscoveries = discoveries.filter(d => d.mode === mode);
   const discoveredIds = modeDiscoveries.map(d => d.spotId);
   const selected = SPOTS.find(spot => spot.id === selectedId);
   const currentFix: LocationFix | null = mode === 'demo' ? { ...demoPosition, accuracy: 0, timestamp: now } : location.fix;
-  const visibleSpots = walking && route?.kind === 'discovery' ? SPOTS.filter(spot => route.spotIds.includes(spot.id)) : SPOTS;
+  const visibleSpots = walking && route?.kind === 'discovery' ? SPOTS.filter(spot => route.spotIds.includes(spot.id)) : rankSpots(SPOTS, topicIds);
   const nextSpot = walking && route ? route.spotIds.map(id => SPOTS.find(spot => spot.id === id)).find(spot => spot && !discoveredIds.includes(spot.id)) : undefined;
   const routeCompleted = walking && route?.kind === 'discovery' && route.spotIds.every(id => discoveredIds.includes(id));
   const progress = route?.spotIds.filter(id => discoveredIds.includes(id)).length ?? 0;
@@ -91,7 +96,7 @@ function Michi() {
   }, []);
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 10000); return () => clearInterval(timer); }, []);
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(null), 4000); return () => clearTimeout(timer); }, [notice]);
-  useEffect(() => { routeRequest.current++; setGoogleRoutes(null); setRouteWarnings([]); setRouteError(null); setRoutesLoading(false); setWalking(false); setSelectedId(null); }, [mode, destinationId, budget]);
+  useEffect(() => { routeRequest.current++; setGoogleRoutes(null); setRouteWarnings([]); setRouteError(null); setRoutesLoading(false); setWalking(false); setSelectedId(null); }, [mode, destinationId, budget, topicIds]);
 
   async function loadRoutes() {
     const fix = location.fix;
@@ -99,7 +104,7 @@ function Michi() {
     const request = ++routeRequest.current;
     setRoutesLoading(true); setRouteError(null);
     try {
-      const result = await fetchRoutes({ latitude: fix.latitude, longitude: fix.longitude }, destinationId, budget);
+      const result = await fetchRoutes({ latitude: fix.latitude, longitude: fix.longitude }, destinationId, budget, topicIds);
       if (request !== routeRequest.current) return;
       setGoogleRoutes(result.routes); setRouteWarnings(result.warnings); setWalking(false);
       if (!result.routes.some(r => r.kind === 'discovery')) { setSelectedKind('direct'); setRouteError('この追加時間に収まる寄り道が見つかりませんでした。時間や目的地を変えて試せます。'); }
@@ -157,11 +162,12 @@ function Michi() {
             <Text style={s.guideNote}>今いる場所から、移動せずに試せます。</Text>
           </View>}
           {!walking ? <>
+            <InterestPicker topics={TOPICS} selected={topicIds} onChange={setTopicIds} />
             <View style={s.budgetRow}><Text style={s.sectionLabel}>寄り道できる時間</Text><View style={s.budgetControls}>{([5, 10] as Budget[]).map(value => <Pressable key={value} accessibilityRole="button" accessibilityLabel={`追加${value}分`} accessibilityState={{ selected: budget === value }} onPress={() => setBudget(value)} style={[s.budgetChip, budget === value && s.budgetSelected]}><Text style={[s.budgetText, budget === value && { color: c.white }]}>＋{value}分</Text></Pressable>)}</View></View>
             {routes.length > 0 ? <><View style={s.routeCards}>{routes.map(option => <Pressable key={option.id} accessibilityRole="button" accessibilityLabel={`${option.label} ${minute(option.totalSeconds)}分`} accessibilityState={{ selected: route?.id === option.id }} onPress={() => setSelectedKind(option.kind)} style={[s.routeCard, route?.id === option.id && s.routeSelected]}><View style={s.routeTop}><Text style={s.routeLabel}>{option.label}</Text><View style={[s.radio, route?.id === option.id && s.radioSelected]}>{route?.id === option.id && <View style={s.radioInner} />}</View></View><View style={s.timeRow}><Text style={s.routeMinutes}>{minute(option.totalSeconds)}</Text><Text style={s.minutesUnit}>分</Text>{option.kind === 'discovery' && <Text style={s.extra}>＋{minute(option.extraSeconds)}分</Text>}</View><Text style={s.routeSub}>{option.kind === 'discovery' ? `${option.spotIds.length}つの発見 · 見学${minute(option.visitSeconds)}分込み` : '寄り道せず、目的地へ'}</Text></Pressable>)}</View>
               <Button label={route?.kind === 'discovery' ? 'この道で、発見しよう' : 'このルートを選ぶ'} onPress={() => { setWalking(true); setDemoPosition(DEMO_ORIGIN); }} />
               {mode === 'gps' && <Pressable style={s.centerLink} accessibilityRole="button" onPress={() => void loadRoutes()}><Text style={s.textLink}>{routesLoading ? '経路を更新中…' : '現在地からルートを更新'}</Text></Pressable>}
-            </> : mode === 'gps' && <View style={s.setupCard}><Text style={s.setupTitle}>{routesServerUrl ? '今いる場所から、寄り道へ。' : '近くの「？」を探してみよう。'}</Text><Text style={s.body}>{routesServerUrl ? '現在地をGoogleの経路計算へ送り、見学時間を含めて比べます。' : 'GPSで近くのスポットを発見できます。実際の徒歩ルート比較は、Google経路サービスの接続後に使えます。'}</Text>{routesServerUrl ? <Button label="ルートを探す" onPress={() => void loadRoutes()} loading={routesLoading} disabled={!location.fix} /> : <Button label="体験デモでルートを比べる" secondary onPress={() => changeMode('demo')} />}</View>}
+            </> : mode === 'gps' && <View style={s.setupCard}><Text style={s.setupTitle}>{apiConfigured ? '今いる場所から、寄り道へ。' : '近くの「？」を探してみよう。'}</Text><Text style={s.body}>{apiConfigured ? '現在地をGoogleの経路計算へ送り、見学時間を含めて比べます。' : 'GPSで近くのスポットを発見できます。実際の徒歩ルート比較は、Google経路サービスの接続後に使えます。'}</Text>{apiConfigured ? <Button label="ルートを探す" onPress={() => void loadRoutes()} loading={routesLoading} disabled={!location.fix} /> : <Button label="体験デモでルートを比べる" secondary onPress={() => changeMode('demo')} />}</View>}
           </> : <View style={s.walkCard}>
             <View style={s.rowBetween}><Text style={s.sectionLabel}>{routeCompleted ? 'この道の発見、コンプリート。' : route?.kind === 'direct' ? '目的地へ、気をつけて。' : '次の「？」を見つけよう'}</Text><Text style={s.progressText}>{progress} / {route?.spotIds.length ?? 0}</Text></View>
             {route?.kind === 'discovery' && <View style={s.progressTrack}><View style={[s.progressFill, { width: `${route.spotIds.length ? progress / route.spotIds.length * 100 : 0}%` }]} /></View>}
@@ -173,7 +179,7 @@ function Michi() {
           {routeWarnings.map((warning, index) => <Text key={index} style={s.contextNote}>{warning}</Text>)}
           {routeError && <Text style={s.error}>{routeError}</Text>}
           <View style={s.spotListHeader}><Text style={s.sectionLabel}>{walking ? 'この道の発見' : '近くの、知らない話'}</Text><Text style={s.countLabel}>{visibleSpots.length} SPOTS</Text></View>
-          {visibleSpots.map((spot, index) => <Pressable key={spot.id} accessibilityRole="button" accessibilityLabel={`${discoveredIds.includes(spot.id) ? spot.name : `未発見スポット${index + 1}`}を開く`} onPress={() => setSelectedId(spot.id)} style={s.spotRow}><Text style={s.spotIndex}>{String(index + 1).padStart(2, '0')}</Text><View style={[s.smallQuestion, discoveredIds.includes(spot.id) && { backgroundColor: c.light }]}><Text style={s.smallQuestionText}>{discoveredIds.includes(spot.id) ? '✓' : '?'}</Text></View><View style={{ flex: 1 }}><Text style={s.category}>{spot.category}</Text><Text style={s.spotRowText} numberOfLines={2}>{discoveredIds.includes(spot.id) ? spot.name : spot.hint}</Text></View><Icon name="arrow" size={18} /></Pressable>)}
+          {visibleSpots.map((spot, index) => <Pressable key={spot.id} accessibilityRole="button" accessibilityLabel={`${discoveredIds.includes(spot.id) ? spot.name : `未発見スポット${index + 1}`}を開く`} onPress={() => setSelectedId(spot.id)} style={s.spotRow}><Text style={s.spotIndex}>{String(index + 1).padStart(2, '0')}</Text><View style={[s.smallQuestion, discoveredIds.includes(spot.id) && { backgroundColor: c.light }]}><Text style={s.smallQuestionText}>{discoveredIds.includes(spot.id) ? '✓' : '?'}</Text></View><View style={{ flex: 1 }}><Text style={s.category}>{spot.category}{topicScore(spot, topicIds) > 0 ? ' · あなた向け' : ''}</Text><Text style={s.spotRowText} numberOfLines={2}>{discoveredIds.includes(spot.id) ? spot.name : spot.hint}</Text></View><Icon name="arrow" size={18} /></Pressable>)}
           <Text style={s.footerNote}>「？」に近づいたら、安全な場所で立ち止まって。{mode === 'gps' ? '\n位置は現地未検証です。周囲の案内を優先してください。' : ''}</Text>
         </View>
       </ScrollView> : <ScrollView style={s.scroll} contentContainerStyle={s.bookContent} showsVerticalScrollIndicator={false}>
@@ -202,20 +208,22 @@ function Michi() {
     <Modal visible={Boolean(selected)} animationType="slide" transparent onRequestClose={() => { if (!saving) setSelectedId(null); }}>
       <View style={s.scrim}><View style={[s.sheet, s.detailSheet]}><View style={s.sheetHandle} />
         {notice && <View style={s.modalNotice}><Text style={s.toastText}>{notice}</Text></View>}
-        {selected && <SpotDetail spot={selected} mode={mode} discovered={discoveredIds.includes(selected.id)} fix={currentFix} now={now} saving={saving} loaded={loaded && !storageError} onClose={() => { if (!saving) setSelectedId(null); }} onDiscover={() => void discover(selected)} onMove={() => { setDemoPosition(selected.coordinate); setNow(Date.now()); }} onRelated={setSelectedId} onSource={url => void openSource(url)} discoveredIds={discoveredIds} onOpenBook={() => { setSelectedId(null); setTab('book'); }} locationHelp={locationHelp} />}
+        {selected && <SpotDetail spot={selected} mode={mode} discovered={discoveredIds.includes(selected.id)} fix={currentFix} now={now} saving={saving} loaded={loaded && !storageError} onClose={() => { if (!saving) setSelectedId(null); }} onDiscover={() => void discover(selected)} onMove={() => { setDemoPosition(selected.coordinate); setNow(Date.now()); }} onRelated={setSelectedId} onSource={url => void openSource(url)} discoveredIds={discoveredIds} onOpenBook={() => { setSelectedId(null); setTab('book'); }} locationHelp={locationHelp} topicIds={topicIds} />}
       </View></View>
     </Modal>
   </View></View>;
 }
 
-function SpotDetail({ spot, mode, discovered, fix, now, saving, loaded, onClose, onDiscover, onMove, onRelated, onSource, discoveredIds, onOpenBook, locationHelp }: { spot: Spot; mode: Mode; discovered: boolean; fix: LocationFix | null; now: number; saving: boolean; loaded: boolean; onClose: () => void; onDiscover: () => void; onMove: () => void; onRelated: (id: string) => void; onSource: (url: string) => void; discoveredIds: string[]; onOpenBook: () => void; locationHelp: React.ReactNode }) {
+function SpotDetail({ spot, mode, discovered, fix, now, saving, loaded, onClose, onDiscover, onMove, onRelated, onSource, discoveredIds, onOpenBook, locationHelp, topicIds }: { spot: Spot; mode: Mode; discovered: boolean; fix: LocationFix | null; now: number; saving: boolean; loaded: boolean; onClose: () => void; onDiscover: () => void; onMove: () => void; onRelated: (id: string) => void; onSource: (url: string) => void; discoveredIds: string[]; onOpenBook: () => void; locationHelp: React.ReactNode; topicIds: string[] }) {
   const unlock = getUnlockState(spot, fix, Date.now());
+  const story = pickStory(spot, topicIds, STORIES);
+  const storyTopic = story.variant ? TOPICS.find(topic => topic.id === story.variant?.topicId)?.label : null;
   return <>
     <View style={s.sheetHeader}><Text style={s.eyebrow}>{discovered ? 'DISCOVERY FOUND' : 'A STORY IS HIDING HERE'}</Text><Pressable accessibilityRole="button" accessibilityLabel="スポットを閉じる" onPress={onClose} disabled={saving} style={s.close}><Icon name="close" /></Pressable></View>
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.detailContent}>
       <View style={s.detailTag}><Text style={s.category}>{spot.category} · {mode === 'demo' ? 'デモ' : '現地'}</Text></View>
-      {discovered ? <><Text style={s.detailTitle}>{spot.name}</Text><Artwork category={spot.category} /><Text style={s.story}>{spot.story}</Text><View style={s.lookCard}><Text style={s.sectionLabel}>ここを、見てみよう</Text><Text style={s.body}>{spot.lookFor}</Text></View>
-        <Text style={[s.sectionLabel, { marginTop: 24 }]}>この話のつづき</Text>{spot.relatedSpotIds.map(id => { const related = SPOTS.find(s => s.id === id)!; return <Pressable key={id} accessibilityRole="button" accessibilityLabel={`関連する${discoveredIds.includes(id) ? related.name : '未発見スポット'}を開く`} onPress={() => onRelated(id)} style={s.related}><View style={s.smallQuestion}><Text style={s.smallQuestionText}>{discoveredIds.includes(id) ? '✓' : '?'}</Text></View><View style={{ flex: 1 }}><Text style={s.category}>{related.category}</Text><Text style={s.hintText}>{discoveredIds.includes(id) ? related.name : related.hint}</Text></View><Icon name="arrow" size={18} /></Pressable>; })}
+      {discovered ? <><Text style={s.detailTitle}>{spot.name}</Text><Artwork category={spot.category} />{storyTopic && <Text style={[s.category, { marginBottom: 8 }]}>「{storyTopic}」の視点で · Geminiの下書きを出典と照合済み</Text>}<Text style={s.story}>{story.text}</Text><View style={s.lookCard}><Text style={s.sectionLabel}>ここを、見てみよう</Text><Text style={s.body}>{spot.lookFor}</Text></View>
+        <Text style={[s.sectionLabel, { marginTop: 24 }]}>この話のつづき</Text>{spot.relatedSpotIds.map(id => { const related = SPOTS.find(s => s.id === id)!; return <Pressable key={id} accessibilityRole="button" accessibilityLabel={`関連する${discoveredIds.includes(id) ? related.name : '未発見スポット'}を開く`} onPress={() => onRelated(id)} style={s.related}><View style={s.smallQuestion}><Text style={s.smallQuestionText}>{discoveredIds.includes(id) ? '✓' : '?'}</Text></View><View style={{ flex: 1 }}><Text style={s.category}>{related.category}</Text>{discoveredIds.includes(id) ? <Text style={s.hintText}>{related.name}</Text> : <RelatedTeaser from={spot} to={related} topicIds={topicIds} />}</View><Icon name="arrow" size={18} /></Pressable>; })}
         <Text style={[s.sectionLabel, { marginTop: 24 }]}>物語の出典</Text>{spot.sources.map(source => <Pressable key={source.url} accessibilityRole="link" onPress={() => onSource(source.url)} style={s.sourceLink}><Text style={[s.textLink, { flex: 1 }]}>{source.title}</Text><Text style={s.textLink}>↗</Text></Pressable>)}<Text style={s.coordinateNote}>{spot.coordinateNote}</Text><View style={s.savedBadge}><Icon name="check" size={18} /><Text style={s.savedText}>図鑑に記録しました{mode === 'demo' ? '（デモ）' : ''}</Text></View>
       </> : <><View style={s.mysteryArt}><View style={s.mysteryRing}><Text style={s.mysteryQuestion}>?</Text></View><Text style={s.mysteryLabel}>まだ知らない、この街の話。</Text></View><Text style={s.detailHint}>{spot.hint}</Text><View style={s.distanceRow}><Icon name="pin" size={18} /><Text style={s.distanceText}>{unlock.distanceMeters === null ? '現在地を待っています' : unlock.eligible ? '発見できる場所に着きました' : `発見スポットまで 約${Math.round(unlock.distanceMeters)}m`}</Text></View><Text style={s.body}>{unlock.reason}</Text>{locationHelp}
         {mode === 'demo' && !unlock.eligible && <View style={{ marginTop: 18 }}><Button label="デモでここへ移動" secondary onPress={onMove} /><Text style={s.centerNote}>実際の移動や現地訪問にはなりません。</Text></View>}

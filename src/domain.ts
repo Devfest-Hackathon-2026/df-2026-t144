@@ -1,4 +1,5 @@
 import type { Budget, Coordinate, Destination, Discovery, LocationFix, Mode, RouteOption, Spot } from './types.ts';
+import { topicScore } from './interests.ts';
 
 const EARTH_RADIUS_METERS = 6_371_000;
 const MAX_FIX_AGE_MS = 60_000;
@@ -49,12 +50,15 @@ export function getUnlockState(spot: Spot, fix: LocationFix | null | undefined, 
  * A reproducible demo, not a walking-directions service. Times are fixtures;
  * coordinates are straight-line overview geometry, never road navigation.
  * The detour budget includes the complete visit time at each selected spot.
+ * With topics, spots sharing more of them are chosen first; the walking order
+ * stays the fixed geographic order of the candidate list.
  */
 export function createDemoRoutes(
   destination: Destination,
   budget: Budget,
   spots: Spot[],
   origin: Coordinate,
+  topicIds: string[] = [],
 ): RouteOption[] {
   const baselineSeconds = destination.id === 'city-hall' ? 9 * 60 : 12 * 60;
   const direct: RouteOption = {
@@ -71,21 +75,24 @@ export function createDemoRoutes(
   };
   const addedWalkingSeconds = budget === 5 ? 3 * 60 : 7 * 60;
   const availableVisitSeconds = budget * 60 - addedWalkingSeconds;
-  const candidates = ['sanjo-giboshi', 'ikedaya'];
-  if (budget === 10) {
-    candidates.push(destination.id === 'shijo-kawaramachi' ? 'zuisenji' : 'takase-ichino-funairi');
-  }
-  const selected: Spot[] = [];
+  const candidates = ['sanjo-giboshi', 'ikedaya',
+    destination.id === 'shijo-kawaramachi' ? 'zuisenji' : 'takase-ichino-funairi'];
+  const pool = candidates
+    .map((id, order) => ({ spot: spots.find((candidate) => candidate.id === id), order }))
+    .filter((item): item is { spot: Spot; order: number } => Boolean(item.spot))
+    .sort((a, b) => topicScore(b.spot, topicIds) - topicScore(a.spot, topicIds) || a.order - b.order);
+  const chosen: { spot: Spot; order: number }[] = [];
   let visitSeconds = 0;
-  for (const id of candidates) {
-    const spot = spots.find((candidate) => candidate.id === id);
-    if (!spot || !isCoordinate(spot.coordinate)
+  for (const item of pool) {
+    const { spot } = item;
+    if (!isCoordinate(spot.coordinate)
       || !Number.isFinite(spot.visitMinutes) || spot.visitMinutes <= 0) continue;
     const duration = Math.ceil(spot.visitMinutes * 60);
     if (visitSeconds + duration > availableVisitSeconds) continue;
-    selected.push(spot);
+    chosen.push(item);
     visitSeconds += duration;
   }
+  const selected = chosen.sort((a, b) => a.order - b.order).map((item) => item.spot);
   if (selected.length === 0) return [direct];
   const walkingSeconds = baselineSeconds + addedWalkingSeconds;
   const discovery: RouteOption = {

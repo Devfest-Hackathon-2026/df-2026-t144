@@ -32,7 +32,16 @@ export function validateInput(input, catalog) {
   if (budgetMinutes !== 5 && budgetMinutes !== 10) {
     throw new RouteError(400, 'INVALID_BUDGET', '寄り道時間は5分または10分を選んでください。');
   }
-  return { origin: { latitude: origin.latitude, longitude: origin.longitude }, destination, budgetMinutes };
+  if (input.topicIds !== undefined && !Array.isArray(input.topicIds)) {
+    throw new RouteError(400, 'INVALID_TOPICS', '興味の指定が不正です。');
+  }
+  const known = new Set((catalog.topics ?? []).map((topic) => topic.id));
+  const topicIds = [...new Set((input.topicIds ?? []).filter((id) => known.has(id)))].slice(0, 3);
+  return { origin: { latitude: origin.latitude, longitude: origin.longitude }, destination, budgetMinutes, topicIds };
+}
+
+function topicScore(stops, topicIds) {
+  return stops.reduce((sum, spot) => sum + (spot.topics ?? []).filter((id) => topicIds.includes(id)).length, 0);
 }
 
 export function decodePolyline(encoded) {
@@ -151,7 +160,7 @@ export async function computeRoutes(input, {
   beforeGoogleCall = () => {},
   timeoutMs = 8_000,
 }) {
-  const { origin, destination, budgetMinutes } = validateInput(input, catalog);
+  const { origin, destination, budgetMinutes, topicIds } = validateInput(input, catalog);
   if (!apiKey) throw new RouteError(503, 'NOT_CONFIGURED', 'Google Routes API が未設定です。デモモードをご利用ください。');
   const query = (stops) => requestWalkingRoute({ origin, destination: destination.coordinate, stops, apiKey, fetchImpl, beforeGoogleCall, timeoutMs });
   const direct = await query([]);
@@ -179,12 +188,15 @@ export async function computeRoutes(input, {
         spotIds: stops.map((spot) => spot.id), coordinates: route.coordinates, source: 'google',
       },
       warnings: route.warnings,
+      score: topicScore(stops, topicIds),
     };
   }));
   const failure = results.find((result) => result.status === 'rejected');
   if (failure) throw failure.reason;
   const candidates = results.map((result) => result.value);
-  const best = candidates.filter(Boolean).sort((a, b) => b.option.spotIds.length - a.option.spotIds.length || a.option.extraSeconds - b.option.extraSeconds)[0];
+  // More discoveries first, then more of the user's topics, then the shorter detour.
+  const best = candidates.filter(Boolean).sort((a, b) => b.option.spotIds.length - a.option.spotIds.length
+    || b.score - a.score || a.option.extraSeconds - b.option.extraSeconds)[0];
   return {
     routes: best ? [baseline, best.option] : [baseline],
     attribution: 'Google Maps',

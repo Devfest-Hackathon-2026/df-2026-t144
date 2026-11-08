@@ -81,6 +81,17 @@ test('ten-minute search makes at most four API calls and prioritizes discoveries
   assert.ok(!result.routes[1].spotIds.includes('ekiden-monument'));
 });
 
+test('user topics break ties between equally long detours and unknown topics are ignored', async () => {
+  const run = async (topicIds) => {
+    const durations = [600, 700, 700];
+    return computeRoutes({ ...input, topicIds }, { catalog, apiKey: 'test', fetchImpl: async () => google(durations.shift()) });
+  };
+  assert.deepEqual((await run([])).routes[1].spotIds, ['sanjo-giboshi', 'ikedaya']);
+  assert.ok((await run(['faith'])).routes[1].spotIds.includes('zuisenji'));
+  assert.deepEqual((await run(['nonsense'])).routes[1].spotIds, ['sanjo-giboshi', 'ikedaya']);
+  assert.throws(() => validateInput({ ...input, topicIds: 'water' }, catalog), { code: 'INVALID_TOPICS' });
+});
+
 test('returns only direct when every discovery exceeds the limit', async () => {
   let calls = 0;
   const result = await computeRoutes(input, { catalog, apiKey: 'test', fetchImpl: async () => google(calls++ ? 1_200 : 600) });
