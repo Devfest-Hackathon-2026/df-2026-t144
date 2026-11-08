@@ -1,8 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFonts } from 'expo-font';
+import { DelaGothicOne_400Regular } from '@expo-google-fonts/dela-gothic-one';
+import Art from './src/components/Art';
+import DiscoveryCard from './src/components/DiscoveryCard';
 import DiscoveryMap from './src/components/Map';
 import InterestPicker from './src/components/InterestPicker';
 import RelatedTeaser from './src/components/RelatedTeaser';
@@ -13,29 +17,21 @@ import { useLocation } from './src/useLocation';
 import { fetchRoutes } from './src/routesClient';
 import { apiConfigured } from './src/apiClient';
 import { colors as c, radius, text as t } from './src/theme';
-import { Button, Icon, installWebStyles } from './src/ui';
+import { Button, Icon, QPin, Shards, Slant, Tag, installWebStyles } from './src/ui';
 import type { Budget, Discovery, LocationFix, Mode, RouteOption, Spot } from './src/types';
 
 installWebStyles();
 const STORAGE_KEY = 'michi.discoveries.v1';
 const minute = (seconds: number) => Math.ceil(seconds / 60);
+const topicLabels = (spot: Spot) => TOPICS.filter(topic => spot.topics.includes(topic.id)).map(topic => topic.label);
+const cardNumber = (spot: Spot) => SPOTS.findIndex(item => item.id === spot.id) + 1;
 
-/** "？" before discovery, a check after. Shape and symbol differ, not only color. */
-function SpotMark({ done, size = 40 }: { done: boolean; size?: number }) {
-  return <View style={[s.mark, { width: size, height: size, borderRadius: size / 2 }, done && s.markDone]}>
-    {done ? <Icon name="check" color={c.key} size={size * 0.55} /> : <Text style={[t.std20B150, s.markText]}>？</Text>}
-  </View>;
-}
-function Tag({ label, tone = 'key' }: { label: string; tone?: 'key' | 'gray' }) {
-  return <View style={[s.tag, tone === 'gray' && s.tagGray]}><Text style={[t.note14B150, { color: tone === 'key' ? c.key : c.sub }]}>{label}</Text></View>;
-}
-function Progress({ value, total }: { value: number; total: number }) {
-  return <View style={s.progressTrack} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: total, now: value }}>
-    <View style={[s.progressFill, { width: `${total ? value / total * 100 : 0}%` }]} />
-  </View>;
+export default function App() {
+  // Native needs the display font loaded first; web gets it from Google Fonts.
+  const [fontsLoaded] = useFonts(Platform.OS === 'web' ? {} : { DelaGothicOne_400Regular });
+  return <SafeAreaProvider>{fontsLoaded ? <Michi /> : <View style={{ flex: 1, backgroundColor: c.navy }} />}</SafeAreaProvider>;
 }
 
-export default function App() { return <SafeAreaProvider><Michi /></SafeAreaProvider>; }
 function Michi() {
   const { width } = useWindowDimensions();
   const [tab, setTab] = useState<'walk' | 'book'>('walk');
@@ -44,6 +40,7 @@ function Michi() {
   const [destinationId, setDestinationId] = useState(DESTINATIONS[0].id);
   const [destinationPicker, setDestinationPicker] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [cardView, setCardView] = useState(false);
   const [selectedKind, setSelectedKind] = useState<'direct' | 'discovery'>('discovery');
   const [walking, setWalking] = useState(false);
   const [discoveries, setDiscoveries] = useState<Discovery[]>([]);
@@ -64,6 +61,8 @@ function Michi() {
   const demoRoutes = useMemo(() => createDemoRoutes(destination, budget, SPOTS, DEMO_ORIGIN, topicIds), [destinationId, budget, topicIds]);
   const routes = mode === 'demo' ? demoRoutes : googleRoutes ?? [];
   const route = routes.find(r => r.kind === selectedKind) ?? routes[0] ?? null;
+  const direct = routes.find(r => r.kind === 'direct');
+  const discoveryRoute = routes.find(r => r.kind === 'discovery');
   const modeDiscoveries = discoveries.filter(d => d.mode === mode);
   const discoveredIds = modeDiscoveries.map(d => d.spotId);
   const selected = SPOTS.find(spot => spot.id === selectedId);
@@ -107,270 +106,366 @@ function Michi() {
     if (!getUnlockState(spot, pressFix).eligible) { setNotice('現在地をもう一度確認してください。'); return; }
     setSaving(true);
     const updated = addDiscovery(discoveries, spot.id, mode);
-    try { await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); setDiscoveries(updated); setNotice('図鑑に記録しました。'); }
+    try { await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); setDiscoveries(updated); }
     catch { setNotice('保存できませんでした。空き容量などを確認して、もう一度お試しください。'); }
     finally { setSaving(false); }
   }
   async function openSource(url: string) {
     try { await Linking.openURL(url); } catch { setNotice('出典を開けませんでした。ネット接続を確認してください。'); }
   }
+  async function share(spot: Spot) {
+    const message = `MICHI?で「${spot.name}」を発見！ いつもの道に、まだ知らない物語がある。 #MICHI #ミチハテナ #京都`;
+    try { await Share.share({ message }); }
+    catch {
+      try { await Linking.openURL(`https://x.com/intent/post?text=${encodeURIComponent(message)}`); }
+      catch { setNotice('シェアできませんでした。'); }
+    }
+  }
   const changeMode = (value: Mode) => { if (saving) return; setMode(value); setDemoPosition(DEMO_ORIGIN); };
+  const openSpot = (id: string, card = false) => { setCardView(card); setSelectedId(id); };
   function startFirstDiscovery() {
     const firstId = demoRoutes.find(option => option.kind === 'discovery')?.spotIds[0];
     if (!firstId) return;
     setTab('walk'); setSelectedKind('discovery'); setWalking(true);
-    setDemoPosition(DEMO_ORIGIN); setSelectedId(firstId);
+    setDemoPosition(DEMO_ORIGIN); openSpot(firstId);
   }
   async function openLocationSettings() {
     try { await Linking.openSettings(); }
     catch { setNotice('設定を開けませんでした。端末の設定から位置情報の許可を確認してください。'); }
   }
   const locationHelp = mode === 'gps' && location.error ? <View style={s.alert}>
-    <Text style={[t.std16B170, s.textColor]}>現在地を使えません</Text><Text style={[t.std16N170, s.bodyText]}>{location.error}</Text>
-    {location.needsSettings && (Platform.OS === 'web' ? <Text style={[t.std16N170, s.bodyText]}>ブラウザのサイト設定から、位置情報の許可を変更できます。</Text> : <Button label="位置情報の設定を開く" variant="secondary" onPress={() => void openLocationSettings()} />)}
-    <Button label="位置情報を使わずデモで試す" variant="secondary" onPress={() => changeMode('demo')} />
+    <Text style={[t.std16B170, { color: c.white }]}>現在地を使えません</Text><Text style={[t.std16N170, { color: c.mist }]}>{location.error}</Text>
+    {location.needsSettings && (Platform.OS === 'web' ? <Text style={[t.std16N170, { color: c.mist }]}>ブラウザのサイト設定から、位置情報の許可を変更できます。</Text> : <Button label="位置情報の設定を開く" variant="ghost" onPress={() => void openLocationSettings()} />)}
+    <Button label="位置情報を使わずデモで試す" variant="light" onPress={() => changeMode('demo')} />
   </View> : null;
-
-  const gpsStatus = location.loading ? '現在地を取得しています。' : location.fix ? `${location.fix.accuracy === null ? 'GPSの精度は不明です。' : `GPSの精度は約${Math.round(location.fix.accuracy)}mです。`}現在地はアプリの利用中だけ取得します。` : location.error ? '現在地を利用できません。' : '現在地を待っています。';
+  const gpsStatus = location.loading ? '現在地を取得しています。' : location.fix ? `${location.fix.accuracy === null ? 'GPSの精度は不明です。' : `GPSの精度は約${Math.round(location.fix.accuracy)}m。`}現在地はアプリの利用中だけ取得します。` : location.error ? '現在地を利用できません。' : '現在地を待っています。';
+  const closeSpot = () => { if (!saving) { setSelectedId(null); setCardView(false); } };
 
   return <View style={s.desktop}><View style={[s.app, width > 600 && s.desktopApp]}>
-    <StatusBar style="dark" />
+    <StatusBar style="light" />
     <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
       <View style={s.header}>
-        <Text style={[t.std24B150, s.brand]} accessibilityRole="header">MICHI<Text style={{ color: c.key }}>?</Text></Text>
-        <Text style={[t.note14N150, s.subText]}>京都・三条周辺の寄り道案内</Text>
+        <Shards height={110} />
+        <View style={s.rowBetween}>
+          <View>
+            <Text style={[t.display32, s.logo]} accessibilityRole="header" accessibilityLabel="MICHI? ミチハテナ">MICHI<Text style={[t.display40, { color: c.red }]}>?</Text></Text>
+            <Text style={[t.note14B150, { color: c.mist, marginTop: -4 }]}>ミチハテナ</Text>
+          </View>
+          <View style={s.modeSwitch} accessibilityRole="radiogroup" accessibilityLabel="使い方">{(['demo', 'gps'] as Mode[]).map(value => {
+            const active = mode === value;
+            return <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={() => changeMode(value)} style={[s.modeItem, active && s.modeActive]}>
+              <Text style={[active ? t.note14B150 : t.note14N150, { color: active ? c.navy : c.mist }]}>{value === 'demo' ? 'デモ' : '現地'}</Text>
+            </Pressable>;
+          })}</View>
+        </View>
+        <View style={s.tabs} accessibilityRole="tablist">{([{ id: 'walk', label: '探索' }, { id: 'book', label: '図鑑' }] as const).map(item => {
+          const active = tab === item.id;
+          return <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => setTab(item.id)} style={[s.tab, active && s.tabActive]}>
+            <View style={s.unskew}><Icon name={item.id === 'walk' ? 'map' : 'book'} color={active ? c.white : c.mist} size={20} /><Text style={[t.std16B170, { color: active ? c.white : c.mist }]}>{item.label}</Text></View>
+          </Pressable>;
+        })}</View>
       </View>
-      <View style={s.segment} accessibilityRole="radiogroup" accessibilityLabel="使い方の切り替え">{(['demo', 'gps'] as Mode[]).map(value => {
-        const active = mode === value;
-        return <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={() => changeMode(value)} style={[s.segmentItem, active && s.segmentActive]}>
-          {active && <Icon name="check" color={c.white} size={18} />}<Text style={[active ? t.std16B170 : t.std16N170, { color: active ? c.white : c.body }]}>{value === 'demo' ? '体験デモ' : '現地で歩く'}</Text>
-        </Pressable>;
-      })}</View>
 
       {tab === 'walk' ? <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={[t.std28B150, s.textColor, s.pageTitle]} accessibilityRole="header">{walking ? '寄り道中' : '寄り道ルートを探す'}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={`目的地 ${destination.name}。変更する`} onPress={() => setDestinationPicker(true)} style={({ pressed }) => [s.field, pressed && s.rowPressed]}>
-          <Icon name="pin" color={c.key} />
-          <View style={{ flex: 1 }}><Text style={[t.note14N150, s.subText]}>{mode === 'demo' ? '三条京阪付近（デモ）' : '現在地'}から</Text><Text style={[t.std18B160, s.textColor]}>{destination.name}</Text></View>
-          <Text style={[t.std16N170, s.link]}>変更</Text>
-        </Pressable>
-        <View style={s.mapFrame}><DiscoveryMap spots={visibleSpots} discoveredIds={discoveredIds} route={route} destination={destination} position={currentFix} selectedId={selectedId ?? undefined} onSelect={setSelectedId} /></View>
+        {!walking && <View style={s.hero} accessibilityRole="header" accessibilityLabel="いつもの道に、まだ知らない物語がある。">
+          <Slant><Text style={[t.display22, { color: c.navy }]}>いつもの道に、</Text></Slant>
+          <Slant style={{ marginLeft: 28 }}><Text style={[t.display22, { color: c.navy }]}>まだ知らない</Text></Slant>
+          <Slant style={{ marginLeft: 8 }}><Text style={[t.display22, { color: c.navy }]}><Text style={s.underline}>物語</Text>がある。</Text></Slant>
+        </View>}
+
+        <View style={s.mapBlock}>
+          <DiscoveryMap spots={visibleSpots} discoveredIds={discoveredIds} route={route} destination={destination} position={currentFix} selectedId={selectedId ?? undefined} onSelect={id => openSpot(id)} />
+          <View style={s.routeCard}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`目的地 ${destination.name}。変更する`} onPress={() => setDestinationPicker(true)} style={s.destinationRow}>
+              <Icon name="pin" color={c.navy} size={20} /><Text style={[t.std16B170, { color: c.navy, flex: 1 }]} numberOfLines={1}>目的地：{destination.name}</Text><Text style={[t.note14B150, { color: c.red }]}>変更</Text>
+            </Pressable>
+            {walking ? <View style={s.compareRow}><Text style={[t.std16B170, { color: c.navy }]}>{routeCompleted ? 'このルートの「？」をすべて発見' : `発見 ${progress} / ${route?.spotIds.length ?? 0}`}</Text></View> : <>
+              {direct && <Pressable accessibilityRole="radio" accessibilityState={{ checked: route?.kind === 'direct' }} onPress={() => setSelectedKind('direct')} style={[s.compareRow, route?.kind === 'direct' && s.compareDirectActive]}>
+                <Text style={[t.std16N170, { color: c.navy, width: 96 }]}>通常ルート</Text><Text style={[t.std16B170, { color: c.navy }]}>{minute(direct.totalSeconds)}分</Text>
+                {route?.kind === 'direct' && <View style={{ marginLeft: 'auto' }}><Icon name="check" color={c.navy} size={18} /></View>}
+              </Pressable>}
+              {discoveryRoute && <Pressable accessibilityRole="radio" accessibilityState={{ checked: route?.kind === 'discovery' }} onPress={() => setSelectedKind('discovery')} style={[s.compareRow, s.compareDiscovery, route?.kind !== 'discovery' && s.compareDiscoveryIdle]}>
+                <Icon name="sparkle" color={c.white} size={14} /><Text style={[t.std16B170, { color: c.white, width: 82 }]}>発見ルート</Text><Text style={[t.std16B170, { color: c.white }]}>{minute(discoveryRoute.totalSeconds)}分（+{minute(discoveryRoute.extraSeconds)}分）</Text>
+                {route?.kind === 'discovery' && <View style={{ marginLeft: 'auto' }}><Icon name="check" color={c.white} size={18} /></View>}
+              </Pressable>}
+            </>}
+          </View>
+          <View style={s.mapBar} pointerEvents="none">
+            <Text style={[t.std16B170, { color: c.white }]}>{walking ? 'このルートの残り' : 'このルートの発見'}</Text>
+            <Text style={[t.display26, { color: c.redText }]}>{walking ? (route?.spotIds.length ?? 0) - progress : route?.spotIds.length ?? 0}<Text style={[t.std16B170, { color: c.white }]}> 件</Text></Text>
+          </View>
+        </View>
+
         <View style={s.section}>
-          {mode === 'demo' ? <Text style={[t.note14N150, s.subText]}>デモでは、位置と所要時間に体験用の仮データを使います。</Text>
-            : <View style={s.rowBetween}><Text style={[t.note14N150, s.subText, { flex: 1 }]}>{gpsStatus}</Text><Button label="再取得" variant="text" onPress={() => void location.retry()} /></View>}
+          {mode === 'demo' ? <Text style={[t.note14N150, { color: c.muted }]}>DEMO：位置と所要時間は体験用の仮データです。</Text>
+            : <View style={s.rowBetween}><Text style={[t.note14N150, { color: c.muted, flex: 1 }]}>{gpsStatus}</Text><Pressable accessibilityRole="button" onPress={() => void location.retry()} style={s.textButton}><Text style={[t.note14B150, s.link]}>再取得</Text></Pressable></View>}
           {locationHelp}
-          {mode === 'demo' && loaded && modeDiscoveries.length === 0 && !walking && <View style={s.notice}>
-            <Text style={[t.std18B160, s.textColor]}>はじめての方へ</Text>
-            {['地図かリストの「？」を選ぶ', '「デモでこの場所へ移動」を押す', '「発見する」を押すと解説が開き、図鑑に記録される'].map((label, index) => <View key={label} style={s.step}><Text style={[t.std16B170, { color: c.key }]}>{index + 1}.</Text><Text style={[t.std16N170, s.bodyText, { flex: 1 }]}>{label}</Text></View>)}
-            <Button label="最初の「？」を試す" onPress={startFirstDiscovery} disabled={Boolean(storageError)} />
-            <Text style={[t.note14N150, s.subText]}>今いる場所から移動しなくても試せます。</Text>
+
+          {mode === 'demo' && loaded && modeDiscoveries.length === 0 && !walking && <View style={s.guide}>
+            {[['ルートを選ぶ', '目的地までの道に「？」を表示'], ['見つける', '「？」に近づいて正体を探す'], ['物語を知る', '隠れた歴史や背景を読む'], ['カードを集める', '発見カードを図鑑に保存']].map(([title, body], index) => <View key={title} style={s.guideStep}>
+              <Slant color={c.red} style={{ paddingHorizontal: 10 }}><Text style={[t.display18, { color: c.white }]}>{index + 1}</Text></Slant>
+              <View style={{ flex: 1 }}><Text style={[t.std16B170, { color: c.white }]}>{title}</Text><Text style={[t.note14N150, { color: c.mist }]}>{body}</Text></View>
+            </View>)}
+            <Button label="最初の「？」を体験する" icon="sparkle" onPress={startFirstDiscovery} disabled={Boolean(storageError)} />
+            <Text style={[t.note14N150, { color: c.muted, textAlign: 'center' }]}>今いる場所から移動しなくても試せます。</Text>
           </View>}
+
           {!walking ? <>
             <InterestPicker topics={TOPICS} selected={topicIds} onChange={setTopicIds} />
-            <Text style={[t.std20B150, s.textColor, s.sectionTitle]} accessibilityRole="header">寄り道できる時間</Text>
+            <Text style={[t.std18B160, { color: c.white }]}>寄り道できる時間</Text>
             <View style={s.choiceRow} accessibilityRole="radiogroup">{([5, 10] as Budget[]).map(value => {
               const active = budget === value;
               return <Pressable key={value} accessibilityRole="radio" accessibilityLabel={`追加${value}分まで`} accessibilityState={{ checked: active }} onPress={() => setBudget(value)} style={[s.choice, active && s.choiceActive]}>
-                {active && <Icon name="check" color={c.key} size={18} />}<Text style={[active ? t.std16B170 : t.std16N170, { color: active ? c.key : c.body }]}>追加{value}分まで</Text>
+                <View style={s.unskew}>{active && <Icon name="check" color={c.white} size={18} />}<Text style={[t.std16B170, { color: active ? c.white : c.mist }]}>＋{value}分まで</Text></View>
               </Pressable>;
             })}</View>
             {routes.length > 0 ? <>
-              <View style={s.routeCards} accessibilityRole="radiogroup">{routes.map(option => {
-                const active = route?.id === option.id;
-                return <Pressable key={option.id} accessibilityRole="radio" accessibilityLabel={`${option.kind === 'discovery' ? '寄り道する' : '寄り道しない'} ${minute(option.totalSeconds)}分`} accessibilityState={{ checked: active }} onPress={() => setSelectedKind(option.kind)} style={[s.routeCard, active && s.routeActive]}>
-                  <View style={s.rowBetween}><Text style={[t.std16B170, s.textColor]}>{option.kind === 'discovery' ? '寄り道する' : '寄り道しない'}</Text><View style={[s.radio, active && s.radioActive]}>{active && <View style={s.radioDot} />}</View></View>
-                  <Text style={[t.std28B150, s.textColor]}>{minute(option.totalSeconds)}<Text style={t.std16N170}>分</Text></Text>
-                  <Text style={[t.note14N150, s.subText]}>{option.kind === 'discovery' ? `「？」${option.spotIds.length}か所（見学${minute(option.visitSeconds)}分を含む）\n直行より${minute(option.extraSeconds)}分長い` : '目的地まで直行'}</Text>
-                </Pressable>;
-              })}</View>
-              <Button label="このルートで歩き始める" onPress={() => { setWalking(true); setDemoPosition(DEMO_ORIGIN); }} />
-              {mode === 'gps' && <Button label={routesLoading ? '経路を計算しています' : '現在地からルートを再計算する'} variant="text" onPress={() => void loadRoutes()} disabled={routesLoading} />}
+              <Button label={route?.kind === 'discovery' ? '発見ルートで出発する' : '通常ルートで出発する'} onPress={() => { setWalking(true); setDemoPosition(DEMO_ORIGIN); }} />
+              {mode === 'gps' && <Button label={routesLoading ? '経路を計算しています' : '現在地からルートを再計算する'} variant="ghost" onPress={() => void loadRoutes()} disabled={routesLoading} />}
             </> : mode === 'gps' && <View style={s.card}>
-              <Text style={[t.std18B160, s.textColor]}>{apiConfigured ? '現在地から寄り道ルートを探す' : '近くの「？」を探す'}</Text>
-              <Text style={[t.std16N170, s.bodyText]}>{apiConfigured ? '現在地をGoogleの経路計算に送り、見学時間を含めて所要時間を比べます。' : 'GPSで近くの「？」を発見できます。徒歩ルートの比較は、経路サーバーにつないだ後に使えます。'}</Text>
-              {apiConfigured ? <Button label="ルートを探す" onPress={() => void loadRoutes()} loading={routesLoading} disabled={!location.fix} /> : <Button label="体験デモでルートを比べる" variant="secondary" onPress={() => changeMode('demo')} />}
+              <Text style={[t.std18B160, { color: c.white }]}>{apiConfigured ? '現在地から寄り道ルートを探す' : '近くの「？」を探す'}</Text>
+              <Text style={[t.std16N170, { color: c.mist }]}>{apiConfigured ? '現在地をGoogleの経路計算に送り、見学時間を含めて所要時間を比べます。' : 'GPSで近くの「？」を発見できます。徒歩ルートの比較は、経路サーバーにつないだ後に使えます。'}</Text>
+              {apiConfigured ? <Button label="ルートを探す" onPress={() => void loadRoutes()} loading={routesLoading} disabled={!location.fix} /> : <Button label="体験デモでルートを比べる" variant="light" onPress={() => changeMode('demo')} />}
             </View>}
           </> : <View style={s.card}>
-            <View style={s.rowBetween}><Text style={[t.std18B160, s.textColor, { flex: 1 }]}>{routeCompleted ? 'このルートの「？」をすべて発見しました' : route?.kind === 'direct' ? '目的地へ向かっています' : '次の「？」'}</Text><Text style={[t.std16B170, s.textColor]}>{progress} / {route?.spotIds.length ?? 0}か所</Text></View>
-            {route?.kind === 'discovery' && <Progress value={progress} total={route.spotIds.length} />}
-            {nextSpot ? <Pressable accessibilityRole="button" accessibilityLabel={`次の「？」のヒント。${nextSpot.hint}`} onPress={() => setSelectedId(nextSpot.id)} style={({ pressed }) => [s.nextCard, pressed && s.rowPressed]}>
-              <SpotMark done={false} /><View style={{ flex: 1 }}><Text style={[t.note14N150, s.subText]}>ヒント</Text><Text style={[t.std16N170, s.bodyText]}>{nextSpot.hint}</Text></View><Icon name="chevron" color={c.sub} size={20} />
-            </Pressable> : <Text style={[t.std16N170, s.bodyText]}>{routeCompleted ? '発見した解説は、発見図鑑で読み返せます。' : '現在地を確かめながら進んでください。デモの線は道案内ではありません。'}</Text>}
-            {routeCompleted && <Button label="発見図鑑を見る" onPress={() => setTab('book')} />}
-            <Button label="ルートを選び直す" variant="text" onPress={() => setWalking(false)} />
+            <View style={s.rowBetween}><Slant color={c.red}><Text style={[t.display18, { color: c.white }]}>{routeCompleted ? 'コンプリート！' : route?.kind === 'direct' ? '目的地へ' : '次の「？」'}</Text></Slant><Text style={[t.std16B170, { color: c.white }]}>{progress} / {route?.spotIds.length ?? 0}</Text></View>
+            {route?.kind === 'discovery' && <View style={s.progressTrack}><View style={[s.progressFill, { width: `${route.spotIds.length ? progress / route.spotIds.length * 100 : 0}%` }]} /></View>}
+            {nextSpot ? <Pressable accessibilityRole="button" accessibilityLabel={`次の「？」のヒント。${nextSpot.hint}`} onPress={() => openSpot(nextSpot.id)} style={({ pressed }) => [s.nextCard, pressed && s.pressed]}>
+              <QPin size={40} /><View style={{ flex: 1 }}><Text style={[t.note14B150, { color: c.redText }]}>ヒント</Text><Text style={[t.std16N170, { color: c.white }]}>{nextSpot.hint}</Text></View><Icon name="chevron" color={c.mist} size={20} />
+            </Pressable> : <Text style={[t.std16N170, { color: c.mist }]}>{routeCompleted ? '集めた発見カードは、図鑑でいつでも見返せます。' : '現在地を確かめながら進んでください。デモの線は道案内ではありません。'}</Text>}
+            {routeCompleted && <Button label="図鑑を見る" icon="book" onPress={() => setTab('book')} />}
+            <Button label="ルートを選び直す" variant="ghost" onPress={() => setWalking(false)} />
           </View>}
-          {route?.source === 'google' && <Text style={[t.note14N150, s.bodyText, { marginTop: 8 }]}>経路情報: Google Maps</Text>}
-          {routeWarnings.map((warning, index) => <Text key={index} style={[t.note14N150, s.subText]}>{warning}</Text>)}
-          {routeError && <View style={s.error}><Text style={[t.std16N170, { color: c.error }]}>{routeError}</Text></View>}
-          <View style={[s.rowBetween, s.sectionTitle]}><Text style={[t.std20B150, s.textColor]} accessibilityRole="header">{walking ? 'このルートの「？」' : '周辺の「？」'}</Text><Text style={[t.std16N170, s.subText]}>{visibleSpots.length}か所</Text></View>
+          {route?.source === 'google' && <Text style={[t.note14N150, { color: c.mist }]}>経路情報: Google Maps</Text>}
+          {routeWarnings.map((warning, index) => <Text key={index} style={[t.note14N150, { color: c.muted }]}>{warning}</Text>)}
+          {routeError && <View style={s.error}><Text style={[t.std16N170, { color: c.white }]}>{routeError}</Text></View>}
+
+          <View style={[s.rowBetween, { marginTop: 8 }]}><Slant color={c.red}><Text style={[t.display18, { color: c.white }]}>{walking ? 'このルートの「？」' : '周辺の「？」'}</Text></Slant><Text style={[t.std16B170, { color: c.mist }]}>{visibleSpots.length}か所</Text></View>
           {visibleSpots.map(spot => {
             const done = discoveredIds.includes(spot.id);
             const match = topicScore(spot, topicIds) > 0;
-            return <Pressable key={spot.id} accessibilityRole="button" accessibilityLabel={`${done ? spot.name : '未発見の「？」'}、${spot.category}${match ? '、興味に一致' : ''}`} onPress={() => setSelectedId(spot.id)} style={({ pressed }) => [s.row, pressed && s.rowPressed]}>
-              <SpotMark done={done} />
+            return <Pressable key={spot.id} accessibilityRole="button" accessibilityLabel={`${done ? spot.name : '未発見の「？」'}、${spot.category}${match ? '、興味に一致' : ''}`} onPress={() => openSpot(spot.id, done)} style={({ pressed }) => [s.row, pressed && s.pressed]}>
+              <QPin done={done} size={36} />
               <View style={{ flex: 1, gap: 4 }}>
-                <View style={s.meta}><Text style={[t.note14N150, s.subText]}>{spot.category}</Text>{match && <Tag label="興味に一致" />}</View>
-                <Text style={[t.std16N170, s.bodyText]} numberOfLines={2}>{done ? spot.name : spot.hint}</Text>
+                <View style={s.meta}><Tag label={spot.category} tone="line" />{match && <Tag label="興味に一致" />}</View>
+                <Text style={[t.std16N170, { color: c.white }]} numberOfLines={2}>{done ? spot.name : spot.hint}</Text>
               </View>
-              <Icon name="chevron" color={c.sub} size={20} />
+              <Icon name="chevron" color={c.mist} size={20} />
             </Pressable>;
           })}
-          <Text style={[t.note14N150, s.subText, s.footer]}>{'「？」の近くでは、歩道の端など安全な場所に立ち止まってから操作してください。'}{mode === 'gps' ? '\nスポットの位置は現地で未確認です。現地の案内表示を優先してください。' : ''}</Text>
+          <Text style={[t.note14N150, s.footer]}>{'「？」の近くでは、歩道の端など安全な場所に立ち止まってから操作してください。'}{mode === 'gps' ? '\nスポットの位置は現地で未確認です。現地の案内表示を優先してください。' : ''}</Text>
         </View>
       </ScrollView> : <ScrollView style={s.scroll} contentContainerStyle={[s.scrollContent, s.section]} showsVerticalScrollIndicator={false}>
-        <Text style={[t.std28B150, s.textColor, s.pageTitle, { paddingHorizontal: 0 }]} accessibilityRole="header">発見図鑑</Text>
-        <Text style={[t.std16N170, s.bodyText]}>発見した「？」の解説を読み返せます。</Text>
-        <View style={s.summary}>
-          <Text style={[t.std20B150, s.textColor]}>{SPOTS.length}か所中 {modeDiscoveries.length}か所を発見</Text>
-          <Progress value={modeDiscoveries.length} total={SPOTS.length} />
-          <Text style={[t.note14N150, s.subText]}>{mode === 'demo' ? 'デモの記録です。現地の記録とは別に保存しています。' : '現地で発見した記録です。'}</Text>
+        <View style={[s.rowBetween, { marginTop: 16 }]}>
+          <Slant color={c.red}><Text style={[t.display26, { color: c.white }]} accessibilityRole="header">発見図鑑</Text></Slant>
+          <Text style={[t.display32, { color: c.white }]}>{modeDiscoveries.length}<Text style={[t.std16B170, { color: c.mist }]}> / {SPOTS.length}枚</Text></Text>
         </View>
-        {!loaded && <ActivityIndicator color={c.key} />}
+        <View style={s.progressTrack}><View style={[s.progressFill, { width: `${modeDiscoveries.length / SPOTS.length * 100}%` }]} /></View>
+        <Text style={[t.note14N150, { color: c.muted }]}>{mode === 'demo' ? 'デモで集めたカードです。現地の記録とは別に保存しています。' : '現地で集めたカードです。'}</Text>
+        {!loaded && <ActivityIndicator color={c.red} />}
         {loaded && modeDiscoveries.length === 0 && <View style={s.card}>
-          <Text style={[t.std18B160, s.textColor]}>まだ記録がありません</Text>
-          <Text style={[t.std16N170, s.bodyText]}>{mode === 'demo' ? 'デモで「？」に近づき、「発見する」を押すと、ここに記録されます。' : '「？」に歩いて近づき、「発見する」を押すと記録されます。デモの記録はここには入りません。'}</Text>
-          <Button label={mode === 'demo' ? '最初の「？」を試す' : 'ルートを探す'} onPress={mode === 'demo' ? startFirstDiscovery : () => setTab('walk')} disabled={Boolean(storageError)} />
+          <Text style={[t.std18B160, { color: c.white }]}>まだカードがありません</Text>
+          <Text style={[t.std16N170, { color: c.mist }]}>{mode === 'demo' ? 'デモで「？」に近づいて発見すると、発見カードがここに入ります。' : '「？」に歩いて近づき発見すると、カードが入ります。デモのカードはここには入りません。'}</Text>
+          <Button label={mode === 'demo' ? '最初の「？」を体験する' : 'ルートを探す'} onPress={mode === 'demo' ? startFirstDiscovery : () => setTab('walk')} disabled={Boolean(storageError)} />
         </View>}
-        {SPOTS.map(spot => {
+        <View style={s.grid}>{SPOTS.map(spot => {
           const discovery = modeDiscoveries.find(d => d.spotId === spot.id);
-          return <Pressable key={spot.id} accessibilityRole="button" accessibilityLabel={`${discovery ? spot.name : '未発見の「？」'}を開く`} onPress={() => setSelectedId(spot.id)} style={({ pressed }) => [s.collectionCard, pressed && s.rowPressed]}>
-            <View style={s.rowBetween}><Text style={[t.note14N150, s.subText]}>{spot.category}</Text>{discovery ? <Tag label="発見済み" /> : <Tag label="未発見" tone="gray" />}</View>
-            {discovery ? <>
-              <Text style={[t.std18B160, s.textColor]}>{spot.name}</Text>
-              <Text style={[t.std16N170, s.bodyText]} numberOfLines={2}>{spot.story}</Text>
-              <Text style={[t.note14N150, s.subText]}>{new Date(discovery.discoveredAt).toLocaleDateString('ja-JP')}に発見（{mode === 'demo' ? 'デモ' : '現地'}）</Text>
-            </> : <Text style={[t.std16N170, s.bodyText]}>{spot.hint}</Text>}
+          return <Pressable key={spot.id} accessibilityRole="button" accessibilityLabel={discovery ? `発見カード ${spot.name}を開く` : `未発見の「？」No.${String(cardNumber(spot)).padStart(3, '0')}を開く`} onPress={() => openSpot(spot.id, Boolean(discovery))} style={({ pressed }) => [s.gridItem, pressed && { opacity: .85 }]}>
+            {discovery ? <DiscoveryCard spot={spot} number={cardNumber(spot)} subtitle={topicLabels(spot).join('・')} discoveredAt={discovery.discoveredAt} compact />
+              : <View style={s.lockedCard}>
+                <Text style={[t.note14B150, { color: c.muted }]}>No.{String(cardNumber(spot)).padStart(3, '0')}</Text>
+                <View style={{ alignItems: 'center', paddingVertical: 8 }}><QPin size={48} /></View>
+                <Text style={[t.note14N150, { color: c.mist }]} numberOfLines={3}>{spot.hint}</Text>
+              </View>}
           </Pressable>;
-        })}
-        <Text style={[t.note14N150, s.subText, s.footer]}>{'記録はこの端末だけに保存されます。アプリを削除すると消えることがあります。'}</Text>
+        })}</View>
+        <Text style={[t.note14N150, s.footer]}>{'カードはこの端末だけに保存されます。アプリを削除すると消えることがあります。'}</Text>
       </ScrollView>}
       {storageError && <Text style={[t.note14N150, s.storageError]}>{storageError}</Text>}
-      <SafeAreaView edges={['bottom']} style={s.tabSafe}><View style={s.tabBar} accessibilityRole="tablist">{([{ id: 'walk', label: 'ルートを探す', icon: 'map' }, { id: 'book', label: '発見図鑑', icon: 'book' }] as const).map(item => {
-        const active = tab === item.id;
-        return <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => setTab(item.id)} style={[s.tab, active && s.tabActive]}>
-          <Icon name={item.icon} color={active ? c.key : c.sub} /><Text style={[active ? t.note14B150 : t.note14N150, { color: active ? c.key : c.sub }]}>{item.label}</Text>
-        </Pressable>;
-      })}</View></SafeAreaView>
     </SafeAreaView>
     {notice && <View style={s.toast} pointerEvents="none" accessibilityLiveRegion="polite"><Text style={[t.std16N170, { color: c.white, textAlign: 'center' }]}>{notice}</Text></View>}
 
     <Modal visible={destinationPicker} animationType="slide" transparent onRequestClose={() => setDestinationPicker(false)}>
       <View style={s.scrim}><View style={s.sheet}>
-        <View style={s.sheetHeader}><Text style={[t.std20B150, s.textColor]} accessibilityRole="header">目的地を選ぶ</Text><Pressable accessibilityRole="button" accessibilityLabel="閉じる" onPress={() => setDestinationPicker(false)} style={s.close}><Icon name="close" /></Pressable></View>
-        <Text style={[t.std16N170, s.bodyText]}>京都・三条周辺の2か所から選べます。</Text>
-        {DESTINATIONS.map(d => <Pressable accessibilityRole="radio" accessibilityState={{ checked: d.id === destinationId }} key={d.id} onPress={() => { setDestinationId(d.id); setDestinationPicker(false); }} style={({ pressed }) => [s.row, pressed && s.rowPressed]}>
-          <Icon name="pin" color={c.key} /><View style={{ flex: 1 }}><Text style={[t.std16B170, s.textColor]}>{d.name}</Text><Text style={[t.note14N150, s.subText]}>{d.subtitle}</Text></View>{d.id === destinationId && <Icon name="check" color={c.key} />}
+        <View style={s.sheetHeader}><Slant color={c.red}><Text style={[t.display18, { color: c.white }]} accessibilityRole="header">目的地を選ぶ</Text></Slant><Pressable accessibilityRole="button" accessibilityLabel="閉じる" onPress={() => setDestinationPicker(false)} style={s.close}><Icon name="close" /></Pressable></View>
+        <Text style={[t.std16N170, { color: c.mist }]}>京都・三条周辺の2か所から選べます。</Text>
+        {DESTINATIONS.map(d => <Pressable accessibilityRole="radio" accessibilityState={{ checked: d.id === destinationId }} key={d.id} onPress={() => { setDestinationId(d.id); setDestinationPicker(false); }} style={({ pressed }) => [s.row, pressed && s.pressed]}>
+          <Icon name="pin" color={c.redText} /><View style={{ flex: 1 }}><Text style={[t.std16B170, { color: c.white }]}>{d.name}</Text><Text style={[t.note14N150, { color: c.muted }]}>{d.subtitle}</Text></View>{d.id === destinationId && <Icon name="check" color={c.white} />}
         </Pressable>)}
         <SafeAreaView edges={['bottom']} />
       </View></View>
     </Modal>
-    <Modal visible={Boolean(selected)} animationType="slide" transparent onRequestClose={() => { if (!saving) setSelectedId(null); }}>
+    <Modal visible={Boolean(selected)} animationType="slide" transparent onRequestClose={closeSpot}>
       <View style={s.scrim}><View style={[s.sheet, s.detailSheet]}>
         {notice && <View style={s.modalNotice}><Text style={[t.std16N170, { color: c.white }]}>{notice}</Text></View>}
-        {selected && <SpotDetail spot={selected} mode={mode} discovered={discoveredIds.includes(selected.id)} fix={currentFix} saving={saving} loaded={loaded && !storageError} onClose={() => { if (!saving) setSelectedId(null); }} onDiscover={() => void discover(selected)} onMove={() => { setDemoPosition(selected.coordinate); setNow(Date.now()); }} onRelated={setSelectedId} onSource={url => void openSource(url)} discoveredIds={discoveredIds} onOpenBook={() => { setSelectedId(null); setTab('book'); }} locationHelp={locationHelp} topicIds={topicIds} />}
+        {selected && (cardView && discoveredIds.includes(selected.id)
+          ? <CardReveal spot={selected} discovery={modeDiscoveries.find(d => d.spotId === selected.id)!} onShare={() => void share(selected)} onStory={() => setCardView(false)} onBook={() => { closeSpot(); setTab('book'); }} onClose={closeSpot} />
+          : <SpotDetail spot={selected} mode={mode} discovered={discoveredIds.includes(selected.id)} fix={currentFix} saving={saving} loaded={loaded && !storageError} onClose={closeSpot} onDiscover={() => void discover(selected)} onMove={() => { setDemoPosition(selected.coordinate); setNow(Date.now()); }} onRelated={id => openSpot(id)} onSource={url => void openSource(url)} discoveredIds={discoveredIds} onCard={() => setCardView(true)} locationHelp={locationHelp} topicIds={topicIds} />)}
       </View></View>
     </Modal>
   </View></View>;
 }
 
-function SpotDetail({ spot, mode, discovered, fix, saving, loaded, onClose, onDiscover, onMove, onRelated, onSource, discoveredIds, onOpenBook, locationHelp, topicIds }: { spot: Spot; mode: Mode; discovered: boolean; fix: LocationFix | null; saving: boolean; loaded: boolean; onClose: () => void; onDiscover: () => void; onMove: () => void; onRelated: (id: string) => void; onSource: (url: string) => void; discoveredIds: string[]; onOpenBook: () => void; locationHelp: React.ReactNode; topicIds: string[] }) {
+function SpotDetail({ spot, mode, discovered, fix, saving, loaded, onClose, onDiscover, onMove, onRelated, onSource, discoveredIds, onCard, locationHelp, topicIds }: { spot: Spot; mode: Mode; discovered: boolean; fix: LocationFix | null; saving: boolean; loaded: boolean; onClose: () => void; onDiscover: () => void; onMove: () => void; onRelated: (id: string) => void; onSource: (url: string) => void; discoveredIds: string[]; onCard: () => void; locationHelp: React.ReactNode; topicIds: string[] }) {
   const unlock = getUnlockState(spot, fix, Date.now());
   const story = pickStory(spot, topicIds, STORIES);
   const storyTopic = story.variant ? TOPICS.find(topic => topic.id === story.variant?.topicId)?.label : null;
-  return <>
-    <View style={s.sheetHeader}>
-      <View style={s.meta}><Tag label={spot.category} tone="gray" /><Tag label={mode === 'demo' ? 'デモ' : '現地'} tone="gray" /></View>
-      <Pressable accessibilityRole="button" accessibilityLabel="閉じる" onPress={onClose} disabled={saving} style={s.close}><Icon name="close" /></Pressable>
-    </View>
+  const header = <View style={s.sheetHeader}>
+    <Pressable accessibilityRole="button" accessibilityLabel="閉じる" onPress={onClose} disabled={saving} style={s.close}><Icon name="back" /></Pressable>
+    <Text style={[t.std16B170, { color: c.white }]}>{discovered ? `${spot.category}・${mode === 'demo' ? 'デモ' : '現地'}` : '発見中…'}</Text>
+    <View style={{ width: 48 }} />
+  </View>;
+
+  if (!discovered) return <>
+    {header}
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.detailContent}>
-      {discovered ? <>
-        <Text style={[t.std24B150, s.textColor]} accessibilityRole="header">{spot.name}</Text>
-        {storyTopic && <Text style={[t.note14N150, s.subText]}>「{storyTopic}」の視点の解説です。Geminiが下書きし、出典と照合しました。</Text>}
-        <Text style={[t.std16N170, s.bodyText]}>{story.text}</Text>
-        <View style={s.notice}><Text style={[t.std16B170, s.textColor]}>現地で見るもの</Text><Text style={[t.std16N170, s.bodyText]}>{spot.lookFor}</Text></View>
-        <Text style={[t.std20B150, s.textColor, s.sectionTitle]} accessibilityRole="header">関連する「？」</Text>
-        {spot.relatedSpotIds.map(id => { const related = SPOTS.find(item => item.id === id)!; const done = discoveredIds.includes(id); return <Pressable key={id} accessibilityRole="button" accessibilityLabel={`関連する${done ? related.name : '未発見の「？」'}を開く`} onPress={() => onRelated(id)} style={({ pressed }) => [s.row, pressed && s.rowPressed]}>
-          <SpotMark done={done} /><View style={{ flex: 1, gap: 4 }}><Text style={[t.note14N150, s.subText]}>{related.category}</Text>{done ? <Text style={[t.std16N170, s.bodyText]}>{related.name}</Text> : <RelatedTeaser from={spot} to={related} topicIds={topicIds} />}</View><Icon name="chevron" color={c.sub} size={20} />
-        </Pressable>; })}
-        <Text style={[t.std20B150, s.textColor, s.sectionTitle]} accessibilityRole="header">出典</Text>
-        {spot.sources.map(source => <Pressable key={source.url} accessibilityRole="link" accessibilityLabel={`${source.title}（外部サイト）`} onPress={() => onSource(source.url)} style={s.sourceLink}><Text style={[t.std16N170, s.link]}>{source.title}（外部サイト）</Text></Pressable>)}
-        <Text style={[t.note14N150, s.subText]}>{spot.coordinateNote}</Text>
-        <View style={s.saved}><Icon name="check" color={c.key} size={20} /><Text style={[t.std16B170, { color: c.key }]}>図鑑に記録済み{mode === 'demo' ? '（デモ）' : ''}</Text></View>
-        <Button label="発見図鑑で見る" onPress={onOpenBook} />
-      </> : <>
-        <Text style={[t.std24B150, s.textColor]} accessibilityRole="header">未発見の「？」</Text>
-        <View style={s.hintBox}><Text style={[t.note14N150, s.subText]}>ヒント</Text><Text style={[t.std18B160, s.textColor]}>{spot.hint}</Text></View>
-        <View style={s.meta}><Icon name="pin" color={c.key} size={20} /><Text style={[t.std16B170, s.textColor]}>{unlock.distanceMeters === null ? '現在地を待っています' : unlock.eligible ? '発見できる場所に着きました' : `「？」まで約${Math.round(unlock.distanceMeters)}m`}</Text></View>
-        <Text style={[t.std16N170, s.bodyText]}>{unlock.reason}</Text>
-        {locationHelp}
-        {mode === 'demo' && !unlock.eligible && <View style={{ gap: 8 }}><Button label="デモでこの場所へ移動" variant="secondary" onPress={onMove} /><Text style={[t.note14N150, s.subText]}>実際には移動しません。体験用に現在地を動かします。</Text></View>}
-        <View style={{ gap: 8 }}><Button label="発見する" onPress={onDiscover} disabled={!unlock.eligible || !loaded} loading={saving} /><Text style={[t.note14N150, s.subText]}>押すと解説が開き、図鑑に記録されます。</Text></View>
-      </>}
-      <Button label="閉じる" variant="secondary" onPress={onClose} disabled={saving} />
+      <View style={s.finder}>
+        <View style={[StyleSheet.absoluteFill, { opacity: .35 }]}><Art category={spot.category} height={280} /></View>
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(11, 22, 49, 0.45)' }]} />
+        {[s.cornerTL, s.cornerTR, s.cornerBL, s.cornerBR].map((corner, index) => <View key={index} style={[s.corner, corner]} />)}
+        <View style={{ zIndex: 2 }}><QPin size={unlock.eligible ? 84 : 64} /></View>
+      </View>
+      <View style={s.callout}>
+        <Text style={[t.display18, { color: c.white }]}>{unlock.eligible ? '何か見つかった…！' : unlock.distanceMeters === null ? '現在地を待っています' : `「？」まで約${Math.round(unlock.distanceMeters)}m`}</Text>
+        <Text style={[t.std16N170, { color: c.white }]}>{unlock.eligible ? 'この場所の物語を解き明かそう。' : unlock.reason}</Text>
+      </View>
+      <View style={s.hintBox}><Text style={[t.note14B150, { color: c.redText }]}>ヒント</Text><Text style={[t.std18B160, { color: c.white }]}>{spot.hint}</Text></View>
+      {locationHelp}
+      {mode === 'demo' && !unlock.eligible && <View style={{ gap: 8 }}><Button label="デモでこの場所へ移動" variant="light" icon="pin" onPress={onMove} /><Text style={[t.note14N150, { color: c.muted, textAlign: 'center' }]}>実際には移動しません。体験用に現在地を動かします。</Text></View>}
+      <View style={s.shutterWrap}>
+        <Pressable accessibilityRole="button" accessibilityLabel="発見する" accessibilityState={{ disabled: !unlock.eligible || !loaded, busy: saving }} disabled={!unlock.eligible || !loaded || saving} onPress={onDiscover}
+          style={({ pressed }) => [s.shutter, (!unlock.eligible || !loaded) && s.shutterOff, pressed && { transform: [{ scale: .94 }] }]}>
+          {saving ? <ActivityIndicator color={c.red} /> : <View style={[s.shutterInner, (!unlock.eligible || !loaded) && { backgroundColor: c.line }]} />}
+        </Pressable>
+        <Text style={[t.std16B170, { color: unlock.eligible ? c.white : c.muted }]}>発見する</Text>
+        <Text style={[t.note14N150, { color: c.muted }]}>{unlock.eligible ? '押すと物語が開き、発見カードがもらえます。' : '「？」の近くまで行くと押せます。'}</Text>
+      </View>
+    </ScrollView>
+  </>;
+
+  return <>
+    {header}
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.detailContent}>
+      <View style={{ gap: 6 }}>
+        <Slant color={c.red}><Text style={[t.display32, { color: c.white }]}>発見！</Text></Slant>
+        <Slant style={{ marginLeft: 16 }}><Text style={[t.display22, { color: c.navy }]} accessibilityRole="header">{spot.name}</Text></Slant>
+      </View>
+      <View style={s.paper}>
+        <View style={s.paperArt}><Art category={spot.category} height={180} /></View>
+        <View style={{ padding: 16, gap: 10 }}>
+          {storyTopic && <Text style={[t.note14N150, { color: c.sepia }]}>「{storyTopic}」の視点の解説です。Geminiが下書きし、出典と照合しました。</Text>}
+          <Text style={[t.std16N170, { color: c.ink }]}>{story.text}</Text>
+          <View style={s.meta}>{topicLabels(spot).map(label => <Tag key={label} label={`#${label}`} tone="paper" />)}</View>
+        </View>
+      </View>
+      <View style={s.lookFor}><Text style={[t.std16B170, { color: c.white }]}>現地で見るもの</Text><Text style={[t.std16N170, { color: c.mist }]}>{spot.lookFor}</Text></View>
+      <Button label="発見カードを受け取る" icon="sparkle" onPress={onCard} />
+      <Slant color={c.red}><Text style={[t.note14B150, { color: c.white }]}>関連する発見</Text></Slant>
+      {spot.relatedSpotIds.map(id => { const related = SPOTS.find(item => item.id === id)!; const done = discoveredIds.includes(id); return <Pressable key={id} accessibilityRole="button" accessibilityLabel={`関連する${done ? related.name : '未発見の「？」'}を開く`} onPress={() => onRelated(id)} style={({ pressed }) => [s.relatedCard, pressed && { opacity: .85 }]}>
+        <View style={s.thumb}>{done ? <Art category={related.category} height={64} /> : <View style={s.thumbLocked}><QPin size={28} /></View>}</View>
+        <View style={{ flex: 1, gap: 2 }}><Text style={[t.note14B150, { color: c.sepia }]}>{related.category}</Text>{done ? <Text style={[t.std16B170, { color: c.ink }]}>{related.name}</Text> : <RelatedTeaser from={spot} to={related} topicIds={topicIds} />}</View>
+        <Icon name="chevron" color={c.sepia} size={20} />
+      </Pressable>; })}
+      <Text style={[t.std16B170, { color: c.white, marginTop: 8 }]}>出典</Text>
+      {spot.sources.map(source => <Pressable key={source.url} accessibilityRole="link" accessibilityLabel={`${source.title}（外部サイト）`} onPress={() => onSource(source.url)} style={s.textButton}><Text style={[t.std16N170, s.link]}>{source.title}（外部サイト）</Text></Pressable>)}
+      <Text style={[t.note14N150, { color: c.muted }]}>{spot.coordinateNote}</Text>
+      <Button label="閉じる" variant="ghost" onPress={onClose} />
       <SafeAreaView edges={['bottom']} />
     </ScrollView>
   </>;
 }
 
+function CardReveal({ spot, discovery, onShare, onStory, onBook, onClose }: { spot: Spot; discovery: Discovery; onShare: () => void; onStory: () => void; onBook: () => void; onClose: () => void }) {
+  return <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.detailContent}>
+    <View style={s.sheetHeader}><View style={{ width: 48 }} /><View /><Pressable accessibilityRole="button" accessibilityLabel="閉じる" onPress={onClose} style={s.close}><Icon name="close" /></Pressable></View>
+    <View style={[s.meta, { justifyContent: 'center' }]}><Icon name="sparkle" color={c.red} size={22} /><Slant><Text style={[t.display22, { color: c.navy }]} accessibilityRole="header">発見カードを獲得！</Text></Slant></View>
+    <View style={s.cardStack}>
+      <View style={[s.cardBack, { transform: [{ rotate: '6deg' }] }]} />
+      <View style={[s.cardBack, { transform: [{ rotate: '-4deg' }] }]} />
+      <View style={{ transform: [{ rotate: '-1.5deg' }] }}><DiscoveryCard spot={spot} number={cardNumber(spot)} subtitle={topicLabels(spot).join('・')} discoveredAt={discovery.discoveredAt} /></View>
+    </View>
+    <Text style={[t.note14N150, { color: c.muted, textAlign: 'center' }]}>カードは図鑑に保存済みです。{discovery.mode === 'demo' ? '（デモ）' : ''}</Text>
+    <Button label="SNSでシェア" icon="share" onPress={onShare} />
+    <Button label="図鑑で見る" icon="bookmark" variant="light" onPress={onBook} />
+    <Button label="物語をもう一度読む" variant="ghost" onPress={onStory} />
+    <SafeAreaView edges={['bottom']} />
+  </ScrollView>;
+}
+
 const s = StyleSheet.create({
-  desktop: { flex: 1, backgroundColor: c.surfaceAlt, alignItems: 'center' },
-  app: { width: '100%', maxWidth: 480, flex: 1, backgroundColor: c.surface, overflow: 'hidden' },
-  desktopApp: { marginVertical: 24, borderRadius: radius.l, borderWidth: 1, borderColor: c.divider },
+  desktop: { flex: 1, backgroundColor: '#050B1C', alignItems: 'center' },
+  app: { width: '100%', maxWidth: 480, flex: 1, backgroundColor: c.navy, overflow: 'hidden' },
+  desktopApp: { marginVertical: 24, borderRadius: radius.l, borderWidth: 1, borderColor: c.line },
   safe: { flex: 1 },
-  textColor: { color: c.text }, bodyText: { color: c.body }, subText: { color: c.sub }, link: { color: c.link, textDecorationLine: 'underline' },
-  header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, flexDirection: 'row', alignItems: 'baseline', gap: 12 },
-  brand: { color: c.text },
-  segment: { marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', borderWidth: 1, borderColor: c.key, borderRadius: radius.m, overflow: 'hidden' },
-  segmentItem: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4, backgroundColor: c.white },
-  segmentActive: { backgroundColor: c.key },
-  scroll: { flex: 1 }, scrollContent: { paddingBottom: 24 },
-  pageTitle: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16 },
-  section: { paddingHorizontal: 16, gap: 16 },
-  sectionTitle: { marginTop: 16 },
-  field: { marginHorizontal: 16, marginBottom: 16, padding: 16, minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: radius.m, backgroundColor: c.white, borderWidth: 1, borderColor: c.border },
-  mapFrame: { height: 280, marginHorizontal: 16, marginBottom: 8, borderRadius: radius.m, overflow: 'hidden', borderWidth: 1, borderColor: c.divider },
+  header: { paddingHorizontal: 16, paddingTop: 8, gap: 8, overflow: 'hidden' },
+  logo: { color: c.white, transform: [{ skewX: '-8deg' }] },
+  link: { color: c.link, textDecorationLine: 'underline' },
+  underline: { textDecorationLine: 'underline', textDecorationColor: c.red },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  card: { borderWidth: 1, borderColor: c.divider, borderRadius: radius.m, padding: 16, gap: 16, backgroundColor: c.white },
-  notice: { backgroundColor: c.keyBg, borderRadius: radius.m, padding: 16, gap: 8 },
-  alert: { backgroundColor: c.surfaceAlt, borderLeftWidth: 4, borderLeftColor: c.key, borderRadius: radius.s, padding: 16, gap: 12 },
-  error: { backgroundColor: c.errorBg, borderLeftWidth: 4, borderLeftColor: c.error, borderRadius: radius.s, padding: 16 },
-  step: { flexDirection: 'row', gap: 8 },
-  choiceRow: { flexDirection: 'row', gap: 8 },
-  choice: { flex: 1, minHeight: 48, borderRadius: radius.m, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4, backgroundColor: c.white },
-  choiceActive: { borderWidth: 2, borderColor: c.key, backgroundColor: c.keyBg },
-  routeCards: { flexDirection: 'row', gap: 8 },
-  routeCard: { flex: 1, borderWidth: 1, borderColor: c.border, borderRadius: radius.m, backgroundColor: c.white, padding: 12, gap: 4 },
-  routeActive: { borderWidth: 2, borderColor: c.key, backgroundColor: c.keyBg },
-  radio: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: c.border, alignItems: 'center', justifyContent: 'center', backgroundColor: c.white },
-  radioActive: { borderColor: c.key }, radioDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: c.key },
-  progressTrack: { height: 8, backgroundColor: c.surfaceAlt, borderRadius: radius.full, overflow: 'hidden', borderWidth: 1, borderColor: c.divider },
-  progressFill: { backgroundColor: c.key, height: '100%' },
-  nextCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: radius.m, borderWidth: 1, borderColor: c.border, backgroundColor: c.white },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, minHeight: 64, borderBottomWidth: 1, borderColor: c.divider },
-  rowPressed: { backgroundColor: c.surfaceAlt },
-  mark: { backgroundColor: c.key, alignItems: 'center', justifyContent: 'center' },
-  markDone: { backgroundColor: c.white, borderWidth: 2, borderColor: c.key },
-  markText: { color: c.white, lineHeight: 26 },
-  tag: { borderWidth: 1, borderColor: c.key, borderRadius: radius.s, paddingHorizontal: 6, backgroundColor: c.white },
-  tagGray: { borderColor: c.border },
-  footer: { marginTop: 8, marginBottom: 8 },
-  summary: { backgroundColor: c.surfaceAlt, borderRadius: radius.m, padding: 16, gap: 8, marginTop: 8 },
-  collectionCard: { padding: 16, gap: 8, borderRadius: radius.m, borderWidth: 1, borderColor: c.divider, backgroundColor: c.white },
-  storageError: { padding: 12, color: c.error, backgroundColor: c.errorBg },
-  tabSafe: { borderTopWidth: 1, borderColor: c.divider, backgroundColor: c.white },
-  tabBar: { flexDirection: 'row' },
-  tab: { flex: 1, alignItems: 'center', gap: 2, paddingVertical: 8, borderTopWidth: 3, borderTopColor: 'transparent', minHeight: 56 },
-  tabActive: { borderTopColor: c.key },
-  toast: { position: 'absolute', bottom: 96, left: 16, right: 16, borderRadius: radius.m, padding: 16, backgroundColor: c.text },
-  scrim: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end', alignItems: 'center' },
-  sheet: { width: '100%', maxWidth: 480, backgroundColor: c.white, borderTopLeftRadius: radius.l, borderTopRightRadius: radius.l, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16, gap: 8 },
-  detailSheet: { maxHeight: '92%', paddingBottom: 0 },
-  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  close: { width: 48, height: 48, borderRadius: radius.m, alignItems: 'center', justifyContent: 'center' },
-  modalNotice: { backgroundColor: c.text, padding: 12, borderRadius: radius.m },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  unskew: { transform: [{ skewX: '10deg' }], flexDirection: 'row', alignItems: 'center', gap: 6 },
+  modeSwitch: { flexDirection: 'row', borderWidth: 1, borderColor: c.line, borderRadius: radius.full, padding: 3, backgroundColor: c.navy },
+  modeItem: { minWidth: 56, minHeight: 36, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
+  modeActive: { backgroundColor: c.white },
+  tabs: { flexDirection: 'row', gap: 6, marginBottom: 8 },
+  tab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: c.navyCard, transform: [{ skewX: '-10deg' }], borderWidth: 1, borderColor: c.line },
+  tabActive: { backgroundColor: c.red, borderColor: c.red },
+  scroll: { flex: 1 }, scrollContent: { paddingBottom: 32 },
+  hero: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16, gap: 6 },
+  mapBlock: { height: 440, marginHorizontal: 12, borderRadius: radius.l, overflow: 'hidden', borderWidth: 2, borderColor: c.line },
+  routeCard: { position: 'absolute', top: 10, left: 10, right: 10, backgroundColor: c.white, borderRadius: radius.m, padding: 8, gap: 6, shadowColor: '#000', shadowOpacity: .35, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
+  destinationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 4, borderBottomWidth: 1, borderColor: '#E3E3E3' },
+  compareRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 10, borderRadius: radius.full },
+  compareDirectActive: { backgroundColor: '#ECEFF5' },
+  compareDiscovery: { backgroundColor: c.red },
+  compareDiscoveryIdle: { opacity: .75 },
+  mapBar: { position: 'absolute', left: 10, right: 10, bottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(11, 22, 49, 0.92)', borderWidth: 1, borderColor: c.line, borderRadius: radius.full, paddingHorizontal: 18, paddingVertical: 4 },
+  section: { paddingHorizontal: 16, paddingTop: 12, gap: 16 },
+  guide: { backgroundColor: c.navyCard, borderWidth: 1, borderColor: c.line, borderRadius: radius.m, padding: 16, gap: 12 },
+  guideStep: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  card: { backgroundColor: c.navyCard, borderWidth: 1, borderColor: c.line, borderRadius: radius.m, padding: 16, gap: 14 },
+  alert: { backgroundColor: c.navyCard, borderLeftWidth: 4, borderLeftColor: c.red, borderRadius: radius.s, padding: 16, gap: 12 },
+  error: { backgroundColor: c.redDark, borderRadius: radius.s, padding: 14 },
+  choiceRow: { flexDirection: 'row', gap: 10, marginTop: -6 },
+  choice: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: c.navyCard, borderWidth: 1, borderColor: c.line, transform: [{ skewX: '-10deg' }] },
+  choiceActive: { backgroundColor: c.red, borderColor: c.red },
+  progressTrack: { height: 8, backgroundColor: c.navyRaised, borderRadius: radius.full, overflow: 'hidden' },
+  progressFill: { backgroundColor: c.red, height: '100%' },
+  nextCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: radius.m, backgroundColor: c.navyRaised },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, minHeight: 72, borderRadius: radius.m, backgroundColor: c.navyCard, borderWidth: 1, borderColor: c.line },
+  pressed: { backgroundColor: c.navyRaised },
+  textButton: { minHeight: 44, justifyContent: 'center' },
+  footer: { color: c.muted, marginTop: 8 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
+  gridItem: { width: '48.5%' },
+  lockedCard: { minHeight: 220, borderRadius: radius.m, borderWidth: 1.5, borderStyle: 'dashed', borderColor: c.line, backgroundColor: c.navyCard, padding: 12, gap: 4 },
+  storageError: { padding: 12, color: c.white, backgroundColor: c.redDark },
+  toast: { position: 'absolute', bottom: 32, left: 16, right: 16, borderRadius: radius.m, padding: 16, backgroundColor: c.red },
+  scrim: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.6)', justifyContent: 'flex-end', alignItems: 'center' },
+  sheet: { width: '100%', maxWidth: 480, backgroundColor: c.navy, borderTopLeftRadius: radius.l, borderTopRightRadius: radius.l, borderTopWidth: 3, borderColor: c.red, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, gap: 8 },
+  detailSheet: { maxHeight: '94%', paddingBottom: 0 },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  close: { width: 48, height: 48, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: c.navyCard },
+  modalNotice: { backgroundColor: c.red, padding: 12, borderRadius: radius.m },
   detailContent: { paddingBottom: 24, gap: 16 },
-  hintBox: { borderLeftWidth: 4, borderLeftColor: c.key, paddingLeft: 12, paddingVertical: 4, gap: 4 },
-  sourceLink: { minHeight: 44, justifyContent: 'center' },
-  saved: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 8 },
+  finder: { height: 280, borderRadius: radius.m, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: c.navyCard },
+  corner: { position: 'absolute', width: 36, height: 36, borderColor: c.white },
+  cornerTL: { top: 28, left: 56, borderTopWidth: 4, borderLeftWidth: 4 },
+  cornerTR: { top: 28, right: 56, borderTopWidth: 4, borderRightWidth: 4 },
+  cornerBL: { bottom: 28, left: 56, borderBottomWidth: 4, borderLeftWidth: 4 },
+  cornerBR: { bottom: 28, right: 56, borderBottomWidth: 4, borderRightWidth: 4 },
+  callout: { marginTop: -44, marginHorizontal: 8, backgroundColor: '#050B1C', borderLeftWidth: 6, borderLeftColor: c.red, padding: 12, transform: [{ skewX: '-6deg' }], gap: 2 },
+  hintBox: { borderLeftWidth: 4, borderLeftColor: c.red, paddingLeft: 12, gap: 4 },
+  shutterWrap: { alignItems: 'center', gap: 6, marginTop: 4 },
+  shutter: { width: 84, height: 84, borderRadius: 42, borderWidth: 5, borderColor: c.white, alignItems: 'center', justifyContent: 'center' },
+  shutterOff: { borderColor: c.line },
+  shutterInner: { width: 62, height: 62, borderRadius: 31, backgroundColor: c.red },
+  paper: { backgroundColor: c.paper, borderRadius: radius.m, overflow: 'hidden' },
+  paperArt: { height: 180 },
+  lookFor: { backgroundColor: c.navyCard, borderRadius: radius.m, padding: 14, gap: 4, borderWidth: 1, borderColor: c.line },
+  relatedCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, backgroundColor: c.paper, borderRadius: radius.m },
+  thumb: { width: 64, height: 64, borderRadius: radius.s, overflow: 'hidden' },
+  thumbLocked: { flex: 1, backgroundColor: c.navy, alignItems: 'center', justifyContent: 'center' },
+  cardStack: { paddingHorizontal: 24, paddingVertical: 12 },
+  cardBack: { position: 'absolute', top: 20, bottom: 16, left: 30, right: 30, backgroundColor: c.paperDeep, borderRadius: radius.m, borderWidth: 2, borderColor: '#B89B6E' },
 });

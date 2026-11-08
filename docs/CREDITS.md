@@ -26,6 +26,7 @@
 
 | サービス | 用途 | 表示・利用の条件 |
 | --- | --- | --- |
+| Maps JavaScript API(Google Maps Platform) | Web版の地図 | 地図上のGoogleロゴと著作権表示を消さない。ブラウザ用キーはURLとAPIで制限する |
 | Routes API(Google Maps Platform) | 徒歩経路と所要時間 | 経路を出す画面に「Google Maps」の帰属を表示する。Google由来の座標は保存しない |
 | Gemini API(Vertex AI) | 興味の言葉の分類、解説文の下書き、次のスポットへの一言 | 生成文は人が出典と照合してから公開する |
 | Cloud Run | APIサーバーとWeb版の配信 | — |
@@ -48,9 +49,11 @@
 
 | 名前 | 提供元 | ライセンス | 用途 |
 | --- | --- | --- | --- |
-| [デジタル庁デザインシステム(DADS)](https://design.digital.go.jp/dads/) のデザイントークン(`@digital-go-jp/design-tokens` 2.1.0) | デジタル庁 | MIT | 色・文字サイズ・行間・角丸の値を `src/theme.ts` に転記。フォーカス表示の仕様 |
+| [デジタル庁デザインシステム(DADS)](https://design.digital.go.jp/dads/) | デジタル庁 | MIT(デザイントークン) | 文字サイズの下限・行間・コントラスト・フォーカス表示の基準 |
 | [Noto Sans JP](https://fonts.google.com/noto/specimen/Noto+Sans+JP) | Google Fonts | SIL Open Font License 1.1 | Web版の本文フォント |
+| [Dela Gothic One](https://fonts.google.com/specimen/Dela+Gothic+One) | Google Fonts(アプリは `@expo-google-fonts/dela-gothic-one` 0.4.1) | SIL Open Font License 1.1 | 見出し・ロゴ |
+| expo-font 58.0.11 | Expo | MIT | アプリでの見出しフォント読み込み |
 
 ## 画像・アイコン
 
-アプリ内のアイコンと地図の略図は、すべて `react-native-svg` で自作した図形。外部の画像素材は使っていない。
+アプリ内のアイコン、地図の略図、スポットの挿絵(`src/components/Art.tsx`)、発見カードの装飾は、すべて `react-native-svg` で自作した図形。外部の画像素材は使っていない。

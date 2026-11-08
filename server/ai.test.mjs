@@ -164,6 +164,9 @@ test('AI endpoints answer through HTTP, respect the daily Gemini ceiling and acc
   assert.equal((await invoke(handler, { path: '/v1/interests', body: { text: 'x' }, origin: 'https://evil.example', host: 'michi-abc.a.run.app' })).status, 403);
   const health = await invoke(handler, { method: 'GET', path: '/health' });
   assert.equal(health.json.geminiConfigured, true);
+  assert.deepEqual((await invoke(handler, { method: 'GET', path: '/v1/config' })).json, { mapsApiKey: null });
+  const withKey = createHandler({ catalog, env: { GOOGLE_MAPS_BROWSER_KEY: 'browser-key' }, gemini: { enabled: false } });
+  assert.deepEqual((await invoke(withKey, { method: 'GET', path: '/v1/config' })).json, { mapsApiKey: 'browser-key' });
 });
 
 test('static handler serves the web export, falls back to index.html and never escapes its root', async () => {

@@ -1,50 +1,150 @@
-// Web preview uses a clearly labelled schematic. Native resolves Map.native.tsx.
-import React from 'react';
+// Web map. With a browser key it shows a real Google Map (Maps JavaScript API,
+// dark color scheme, Advanced Markers). Without one it falls back to a labelled schematic.
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, G, Path, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import type { MapProps } from './Map.types';
+import { fetchConfig } from '../apiClient';
 import { colors as c, radius, text as t } from '../theme';
 
-export default function DiscoveryMap(props: MapProps) {
-  const project = (lat: number, lng: number) => ({ x: 35 + (lng - 135.7678) / .0067 * 340, y: 330 - (lat - 35.0030) / .0107 * 300 });
-  if (props.route?.source === 'google') return <View style={styles.fallback}><Text style={[t.std18B160, { color: c.text }]}>Google Maps の徒歩ルート</Text><Text style={[t.std16N170, { color: c.body }]}>下のルート一覧で、実際の所要時間を比べられます。</Text><Text style={[t.note14N150, { color: c.sub }]}>Google Maps</Text></View>;
-  const destination = project(props.destination.coordinate.latitude, props.destination.coordinate.longitude);
-  const position = props.position ? project(props.position.latitude, props.position.longitude) : null;
+const PIN_SVG = (done: boolean) => `<svg width="40" height="46" viewBox="0 0 40 46" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 4 4 H 36 V 32 H 24 L 20 42 L 16 32 H 4 Z" fill="${done ? c.paper : c.red}" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/>
+  ${done ? `<path d="M 12 18 L 18 24 L 29 12" stroke="${c.red}" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`
+    : '<path d="M 15 13 C 15 8 25 8 25 13 C 25 17 20 17 20 21 M 20 25.5 L 20 26" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/>'}
+</svg>`;
+
+let mapsLoader: Promise<any> | null = null;
+function loadGoogleMaps(key: string): Promise<any> {
+  const w = window as any;
+  if (w.google?.maps?.Map) return Promise.resolve(w.google.maps);
+  mapsLoader ??= new Promise((resolve, reject) => {
+    w.__michiMapsReady = () => resolve(w.google.maps);
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&loading=async&libraries=marker&language=ja&region=JP&callback=__michiMapsReady`;
+    script.async = true;
+    script.onerror = () => { mapsLoader = null; reject(new Error('Google Maps failed to load')); };
+    document.head.appendChild(script);
+  });
+  return mapsLoader;
+}
+
+function useMapsKey() {
+  const [key, setKey] = useState<string | null | undefined>(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || undefined);
+  useEffect(() => {
+    if (key !== undefined) return;
+    let alive = true;
+    void fetchConfig().then((config) => { if (alive) setKey(config.mapsApiKey); });
+    return () => { alive = false; };
+  }, [key]);
+  return key;
+}
+
+function GoogleMap(props: MapProps & { apiKey: string; onFail: () => void }) {
+  const element = useRef<HTMLDivElement | null>(null);
+  const map = useRef<any>(null);
+  const overlays = useRef<any[]>([]);
+  const [maps, setMaps] = useState<any>(null);
+
+  useEffect(() => {
+    const w = window as any;
+    w.gm_authFailure = props.onFail; // invalid key or referrer not allowed
+    loadGoogleMaps(props.apiKey).then(setMaps, props.onFail);
+  }, [props.apiKey]);
+
+  useEffect(() => {
+    if (!maps || !element.current || map.current) return;
+    map.current = new maps.Map(element.current, {
+      center: { lat: 35.0098, lng: 135.771 }, zoom: 16, mapId: 'DEMO_MAP_ID', colorScheme: 'DARK',
+      disableDefaultUI: true, zoomControl: true, clickableIcons: false, gestureHandling: 'greedy',
+    });
+  }, [maps]);
+
+  useEffect(() => {
+    if (!maps || !map.current) return;
+    overlays.current.forEach((item) => (item.setMap ? item.setMap(null) : (item.map = null)));
+    overlays.current = [];
+    const add = (item: any) => overlays.current.push(item);
+    const position = (p: { latitude: number; longitude: number }) => ({ lat: p.latitude, lng: p.longitude });
+    if (props.route?.coordinates.length) {
+      const path = props.route.coordinates.map(position);
+      add(new maps.Polyline({ map: map.current, path, strokeColor: c.red, strokeOpacity: 1, strokeWeight: 7 }));
+      add(new maps.Polyline({ map: map.current, path, strokeOpacity: 0, icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: '#FFFFFF', scale: 2 }, offset: '0', repeat: '12px' }] }));
+      const bounds = new maps.LatLngBounds();
+      path.forEach((p: unknown) => bounds.extend(p));
+      map.current.fitBounds(bounds, { top: 190, bottom: 70, left: 40, right: 40 });
+    }
+    for (const spot of props.spots) {
+      const done = props.discoveredIds.includes(spot.id);
+      const content = document.createElement('button');
+      content.type = 'button';
+      content.innerHTML = PIN_SVG(done);
+      content.setAttribute('aria-label', `${done ? spot.name : '未発見の「？」'}を開く`);
+      content.style.cssText = `background:none;border:0;padding:0;cursor:pointer;transform:scale(${props.selectedId === spot.id ? 1.2 : 1})`;
+      content.addEventListener('click', () => props.onSelect(spot.id));
+      add(new maps.marker.AdvancedMarkerElement({ map: map.current, position: position(spot.coordinate), content, zIndex: props.selectedId === spot.id ? 10 : 1 }));
+    }
+    const flag = document.createElement('div');
+    flag.innerHTML = `<div style="background:#fff;color:${c.navy};font:700 14px 'Noto Sans JP',sans-serif;padding:4px 8px;border:2px solid ${c.red};white-space:nowrap">目的地 ${props.destination.name}</div>`;
+    add(new maps.marker.AdvancedMarkerElement({ map: map.current, position: position(props.destination.coordinate), content: flag, zIndex: 5 }));
+    if (props.position) {
+      const dot = document.createElement('div');
+      dot.style.cssText = `width:18px;height:18px;border-radius:50%;background:${c.user};border:3px solid #fff;box-shadow:0 0 0 8px ${c.user}44`;
+      add(new maps.marker.AdvancedMarkerElement({ map: map.current, position: position(props.position), content: dot, zIndex: 20 }));
+    }
+  }, [maps, props.spots, props.discoveredIds, props.route, props.destination, props.position, props.selectedId]);
+
   return <View style={styles.frame}>
-    <Svg width="100%" height="100%" viewBox="0 0 420 360" preserveAspectRatio="xMidYMid slice">
-      <Rect width="420" height="360" fill={c.ground} />
-      {[45, 99, 155, 210, 272, 330, 389].map(x => <Path key={`v${x}`} d={`M ${x} 0 V 360`} stroke={c.road} strokeWidth={12} />)}
-      {[25, 72, 125, 175, 235, 295, 347].map(y => <Path key={`h${y}`} d={`M 0 ${y} H 420`} stroke={c.road} strokeWidth={10} />)}
-      <Path d="M 304 -10 C 301 90 292 140 303 225 S 308 310 300 375" stroke={c.water} strokeWidth="39" fill="none" />
-      <Path d="M 163 -10 L 163 105 L 173 145 L 173 360" stroke={c.water} strokeWidth="8" fill="none" />
-      <Path d="M 270 175 H 330" stroke={c.road} strokeWidth="12" />
-      <SvgText x="318" y="94" fontSize="14" fill={c.sub}>鴨川</SvgText>
-      <SvgText x="178" y="46" fontSize="14" fill={c.sub}>高瀬川</SvgText>
-      <SvgText x="20" y="168" fontSize="14" fill={c.sub}>三条通</SvgText>
-      <SvgText x="20" y="276" fontSize="14" fill={c.sub}>河原町</SvgText>
-      {props.route && <Polyline points={props.route.coordinates.map(p => { const q = project(p.latitude, p.longitude); return `${q.x},${q.y}`; }).join(' ')} fill="none" stroke={c.key} strokeWidth="4" strokeDasharray="6 6" strokeLinejoin="round" />}
-      <Rect x={destination.x - 10} y={destination.y - 10} width="20" height="20" rx="2" fill={c.text} stroke={c.white} strokeWidth="3" />
-      {props.spots.map(spot => {
-        const actual = project(spot.coordinate.latitude, spot.coordinate.longitude);
-        // The bridge and relay monument share a small area; separate pins in this schematic.
-        const p = spot.id === 'ekiden-monument' ? { x: actual.x + 22, y: actual.y - 28 } : actual;
-        const done = props.discoveredIds.includes(spot.id);
-        const selected = props.selectedId === spot.id;
-        return <g key={spot.id} role="button" tabIndex={0} aria-label={`${done ? spot.name : '未発見の「？」'}を地図で開く`} style={{ cursor: 'pointer' }} onClick={() => props.onSelect(spot.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); props.onSelect(spot.id); } }}>
-          {spot.id === 'ekiden-monument' && <Path d={`M ${actual.x} ${actual.y} L ${p.x} ${p.y}`} stroke={c.sub} strokeWidth="1" strokeDasharray="2 3" />}
-          <Circle cx={p.x} cy={p.y} r={selected ? 20 : 17} fill={done ? c.white : c.key} stroke={selected ? c.black : done ? c.key : c.white} strokeWidth="3" />
-          <SvgText x={p.x} y={p.y + 7} textAnchor="middle" fill={done ? c.key : c.white} fontWeight="700" fontSize="20">{done ? '✓' : '？'}</SvgText>
-        </g>;
-      })}
-      {position && <G><Circle cx={position.x} cy={position.y} r="14" fill="#0031D833" /><Circle cx={position.x} cy={position.y} r="7" fill={c.user} stroke={c.white} strokeWidth="3" /></G>}
-    </Svg>
-    <View style={styles.legend}><Text style={[t.note14N150, { color: c.text }]}>略図です。道案内には使えません。</Text></View>
-    <View style={styles.north}><Text style={[t.note14B150, { color: c.text }]}>北↑</Text></View>
+    <div ref={element} style={{ width: '100%', height: '100%' }} />
+    {!maps && <View style={[StyleSheet.absoluteFill, styles.loading]}><Text style={[t.note14N150, { color: c.muted }]}>地図を読み込んでいます</Text></View>}
   </View>;
 }
+
+function Schematic(props: MapProps) {
+  const project = (lat: number, lng: number) => ({ x: 35 + (lng - 135.7678) / .0067 * 340, y: 330 - (lat - 35.0030) / .0107 * 300 });
+  const destination = project(props.destination.coordinate.latitude, props.destination.coordinate.longitude);
+  const position = props.position ? project(props.position.latitude, props.position.longitude) : null;
+  // Google route geometry may only be drawn on a Google map (Routes API policy).
+  const points = props.route && props.route.source !== 'google' ? props.route.coordinates.map(p => { const q = project(p.latitude, p.longitude); return `${q.x},${q.y}`; }).join(' ') : null;
+  return <View style={styles.frame}>
+    <Svg width="100%" height="100%" viewBox="0 -130 420 490" preserveAspectRatio="xMidYMid slice">
+      <Rect y="-130" width="420" height="490" fill={c.mapGround} />
+      {[45, 99, 155, 210, 272, 330, 389].map(x => <Path key={`v${x}`} d={`M ${x} -130 V 360`} stroke={c.mapRoad} strokeWidth={9} />)}
+      {[-110, -60, -15, 25, 72, 125, 175, 235, 295, 347].map(y => <Path key={`h${y}`} d={`M 0 ${y} H 420`} stroke={c.mapRoad} strokeWidth={7} />)}
+      <Path d="M 300 -140 C 306 -60 304 0 304 -10 C 301 90 292 140 303 225 S 308 310 300 375" stroke={c.mapWater} strokeWidth="39" fill="none" />
+      <Path d="M 163 -140 L 163 105 L 173 145 L 173 360" stroke={c.mapWater} strokeWidth="8" fill="none" />
+      <SvgText x="318" y="94" fontSize="14" fill={c.muted}>鴨川</SvgText>
+      <SvgText x="178" y="46" fontSize="14" fill={c.muted}>高瀬川</SvgText>
+      <SvgText x="20" y="164" fontSize="14" fill={c.muted}>三条通</SvgText>
+      {points && <><Polyline points={points} fill="none" stroke={c.red} strokeWidth="7" strokeLinejoin="round" /><Polyline points={points} fill="none" stroke="#FFFFFF" strokeWidth="2.5" strokeDasharray="4 7" strokeLinejoin="round" /></>}
+      <G><Rect x={destination.x - 9} y={destination.y - 9} width="18" height="18" fill="#FFFFFF" stroke={c.red} strokeWidth="3" /></G>
+      {props.spots.map(spot => {
+        const actual = project(spot.coordinate.latitude, spot.coordinate.longitude);
+        const p = spot.id === 'ekiden-monument' ? { x: actual.x + 26, y: actual.y - 22 } : actual;
+        const done = props.discoveredIds.includes(spot.id);
+        const scale = props.selectedId === spot.id ? 1.2 : 1;
+        return <g key={spot.id} role="button" tabIndex={0} aria-label={`${done ? spot.name : '未発見の「？」'}を地図で開く`} style={{ cursor: 'pointer' }} onClick={() => props.onSelect(spot.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); props.onSelect(spot.id); } }}>
+          <G transform={`translate(${p.x - 20 * scale} ${p.y - 44 * scale}) scale(${scale})`}>
+            <Path d="M 4 4 H 36 V 32 H 24 L 20 42 L 16 32 H 4 Z" fill={done ? c.paper : c.red} stroke="#FFFFFF" strokeWidth={2.5} strokeLinejoin="round" />
+            {done ? <Path d="M 12 18 L 18 24 L 29 12" stroke={c.red} strokeWidth={4} fill="none" strokeLinecap="round" />
+              : <Path d="M 15 13 C 15 8 25 8 25 13 C 25 17 20 17 20 21 M 20 25.5 L 20 26" stroke="#FFFFFF" strokeWidth={4} fill="none" strokeLinecap="round" />}
+          </G>
+        </g>;
+      })}
+      {position && <G><Circle cx={position.x} cy={position.y} r="14" fill={`${c.user}44`} /><Circle cx={position.x} cy={position.y} r="7" fill={c.user} stroke="#FFFFFF" strokeWidth="3" /></G>}
+    </Svg>
+    <View style={styles.legend}><Text style={[t.note14N150, { color: c.white }]}>{props.route?.source === 'google' ? 'Googleの経路線は、Googleマップ表示のときだけ出します。' : '略図です。道案内には使えません。'}</Text></View>
+  </View>;
+}
+
+export default function DiscoveryMap(props: MapProps) {
+  const key = useMapsKey();
+  const [failed, setFailed] = useState(false);
+  if (key && !failed) return <GoogleMap {...props} apiKey={key} onFail={() => setFailed(true)} />;
+  return <Schematic {...props} />;
+}
+
 const styles = StyleSheet.create({
-  frame: { flex: 1, overflow: 'hidden' },
-  legend: { position: 'absolute', top: 8, left: 8, backgroundColor: c.white, paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.s, borderWidth: 1, borderColor: c.divider },
-  north: { position: 'absolute', right: 8, top: 8, paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.s, backgroundColor: c.white, borderWidth: 1, borderColor: c.divider },
-  fallback: { flex: 1, justifyContent: 'center', padding: 24, gap: 8, backgroundColor: c.surfaceAlt },
+  frame: { flex: 1, overflow: 'hidden', backgroundColor: c.mapGround },
+  loading: { alignItems: 'center', justifyContent: 'center' },
+  legend: { position: 'absolute', left: 8, bottom: 64, backgroundColor: 'rgba(11, 22, 49, 0.85)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.s },
 });

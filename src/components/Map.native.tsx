@@ -4,6 +4,18 @@ import Constants from 'expo-constants';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import type { MapProps } from './Map.types';
 import { colors as c, radius, text as t } from '../theme';
+import { QPin } from '../ui';
+
+// Night style for Google Maps on Android / iOS development builds.
+const DARK_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: c.mapGround }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: c.muted }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: c.navy }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: c.mapRoad }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: c.mapWater }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+];
 
 export default function DiscoveryMap(props: MapProps) {
   const map = useRef<MapView>(null);
@@ -11,36 +23,40 @@ export default function DiscoveryMap(props: MapProps) {
   useEffect(() => {
     if (props.route?.coordinates.length) {
       map.current?.fitToCoordinates(props.route.coordinates, {
-        edgePadding: { top: 65, left: 45, right: 45, bottom: 65 }, animated: true,
+        edgePadding: { top: 140, left: 45, right: 45, bottom: 80 }, animated: true,
       });
     }
   }, [props.route?.coordinates, props.destination.id]);
   if (props.route?.source === 'google' && !google) {
-    return <View style={styles.fallback}><Text style={[t.std18B160, { color: c.text }]}>Google Maps の徒歩ルート</Text><Text style={[t.std16N170, { color: c.body }]}>所要時間は下のルート一覧で確認できます。地図に実際の経路を重ねるには、Google Mapsを設定したアプリが必要です。</Text><Text style={[t.note14N150, { color: c.sub }]}>Google Maps</Text></View>;
+    return <View style={styles.fallback}><Text style={[t.std18B160, { color: c.white }]}>Google Maps の徒歩ルート</Text><Text style={[t.std16N170, { color: c.mist }]}>所要時間は上のルート比較で確認できます。地図に実際の経路を重ねるには、Google Mapsを設定したアプリが必要です。</Text><Text style={[t.note14N150, { color: c.muted }]}>Google Maps</Text></View>;
   }
   return <View style={styles.frame}>
     <MapView ref={map} style={StyleSheet.absoluteFill} provider={google ? PROVIDER_GOOGLE : undefined}
+      customMapStyle={google ? DARK_STYLE : undefined} userInterfaceStyle="dark"
       initialRegion={{ latitude: 35.0098, longitude: 135.771, latitudeDelta: 0.008, longitudeDelta: 0.007 }}
       showsCompass={false} showsMyLocationButton={false} showsPointsOfInterests={false} toolbarEnabled={false}
-      onMapReady={() => props.route?.coordinates.length && map.current?.fitToCoordinates(props.route.coordinates, { edgePadding: { top: 60, left: 45, right: 45, bottom: 60 }, animated: false })}>
-      {props.route && <Polyline coordinates={props.route.coordinates} strokeColor={c.key} strokeWidth={5} lineDashPattern={props.route.source === 'demo' ? [6, 5] : undefined} />}
+      onMapReady={() => props.route?.coordinates.length && map.current?.fitToCoordinates(props.route.coordinates, { edgePadding: { top: 140, left: 45, right: 45, bottom: 80 }, animated: false })}>
+      {props.route && <>
+        <Polyline coordinates={props.route.coordinates} strokeColor={c.red} strokeWidth={7} />
+        <Polyline coordinates={props.route.coordinates} strokeColor={c.white} strokeWidth={2.5} lineDashPattern={[4, 8]} />
+      </>}
       {props.spots.map(spot => {
         const done = props.discoveredIds.includes(spot.id);
-        return <Marker key={spot.id} coordinate={spot.coordinate} onPress={() => props.onSelect(spot.id)} tracksViewChanges accessibilityLabel={`${done ? spot.name : '未発見の「？」'}を開く`}>
-          <View style={[styles.marker, done && styles.done, props.selectedId === spot.id && styles.selected]}><Text style={[styles.markerText, done && { color: c.key }]}>{done ? '✓' : '？'}</Text></View>
+        return <Marker key={spot.id} coordinate={spot.coordinate} anchor={{ x: .5, y: 1 }} onPress={() => props.onSelect(spot.id)} tracksViewChanges accessibilityLabel={`${done ? spot.name : '未発見の「？」'}を開く`}>
+          <View style={props.selectedId === spot.id && { transform: [{ scale: 1.2 }] }}><QPin done={done} size={36} /></View>
         </Marker>;
       })}
-      <Marker coordinate={props.destination.coordinate} title={props.destination.name} pinColor={c.text} />
+      <Marker coordinate={props.destination.coordinate} anchor={{ x: .5, y: .5 }}>
+        <View style={styles.flag}><Text style={[t.note14B150, { color: c.navy }]}>目的地</Text></View>
+      </Marker>
       {props.position && <Marker coordinate={props.position} anchor={{ x: .5, y: .5 }}><View style={styles.position}><View style={styles.dot} /></View></Marker>}
     </MapView>
-    <View pointerEvents="none" style={styles.legend}><Text style={[t.note14N150, { color: c.text }]}>{props.route?.source === 'demo' ? '点線はデモの概略経路です' : props.route?.source === 'google' ? 'Google Maps・徒歩ルート' : '周辺の「？」'}</Text></View>
   </View>;
 }
 const styles = StyleSheet.create({
-  frame: { flex: 1, backgroundColor: c.ground },
-  marker: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: c.white, backgroundColor: c.key, alignItems: 'center', justifyContent: 'center' },
-  done: { backgroundColor: c.white, borderColor: c.key }, selected: { borderColor: c.black, borderWidth: 3 }, markerText: { fontSize: 20, fontWeight: '700', color: c.white },
-  position: { width: 28, height: 28, backgroundColor: '#0031D833', borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, dot: { width: 14, height: 14, borderRadius: 7, backgroundColor: c.user, borderWidth: 3, borderColor: c.white },
-  legend: { position: 'absolute', top: 8, left: 8, backgroundColor: c.white, paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.s, borderWidth: 1, borderColor: c.divider },
-  fallback: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: c.surfaceAlt, gap: 8 },
+  frame: { flex: 1, backgroundColor: c.mapGround },
+  flag: { backgroundColor: c.white, borderWidth: 2, borderColor: c.red, paddingHorizontal: 6 },
+  position: { width: 30, height: 30, backgroundColor: `${c.user}44`, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  dot: { width: 16, height: 16, borderRadius: 8, backgroundColor: c.user, borderWidth: 3, borderColor: c.white },
+  fallback: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: c.navyCard, gap: 8, borderRadius: radius.m },
 });

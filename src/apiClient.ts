@@ -28,6 +28,16 @@ export async function postJson<T>(path: string, body: unknown, timeoutMs = 15_00
   } finally { clearTimeout(timeout); }
 }
 
+let configRequest: Promise<{ mapsApiKey: string | null }> | null = null;
+/** Public runtime settings from the server, e.g. the browser Maps key (restricted by HTTP referrer). */
+export function fetchConfig(): Promise<{ mapsApiKey: string | null }> {
+  if (!apiConfigured) return Promise.resolve({ mapsApiKey: null });
+  configRequest ??= fetch(`${apiBaseUrl}/v1/config`).then((response) => response.json())
+    .then((data) => ({ mapsApiKey: typeof data?.mapsApiKey === 'string' && data.mapsApiKey ? data.mapsApiKey : null }))
+    .catch(() => ({ mapsApiKey: null }));
+  return configRequest;
+}
+
 export type InterestResult = { topicIds: string[]; reply: string | null; source: 'gemini' | 'keywords' };
 export type TeaserResult = { text: string | null; usedFactIds: string[]; source: 'gemini' | 'fixed' };
 

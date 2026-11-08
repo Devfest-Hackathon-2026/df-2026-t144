@@ -12,7 +12,7 @@ SA="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 gcloud config set project "$PROJECT_ID"
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
-  aiplatform.googleapis.com secretmanager.googleapis.com routes.googleapis.com
+  aiplatform.googleapis.com secretmanager.googleapis.com routes.googleapis.com maps-backend.googleapis.com
 
 if ! gcloud iam service-accounts describe "$SA" >/dev/null 2>&1; then
   gcloud iam service-accounts create "$SA_NAME" --display-name "MICHI Cloud Run"
@@ -21,14 +21,20 @@ fi
 gcloud projects add-iam-policy-binding "$PROJECT_ID" --member "serviceAccount:${SA}" \
   --role roles/aiplatform.user --condition None >/dev/null
 
+SECRETS=()
+use_secret() { # <secret name> <env var> <message when missing>
+  if gcloud secrets describe "$1" >/dev/null 2>&1; then
+    gcloud secrets add-iam-policy-binding "$1" --member "serviceAccount:${SA}" \
+      --role roles/secretmanager.secretAccessor >/dev/null
+    SECRETS+=("$2=$1:latest")
+  else
+    echo "$3"
+  fi
+}
+use_secret routes-api-key GOOGLE_ROUTES_API_KEY "routes-api-key がないため、Google Routes なしでデプロイします(体験デモとGeminiは動きます)。"
+use_secret maps-browser-key GOOGLE_MAPS_BROWSER_KEY "maps-browser-key がないため、Web版の地図は略図になります。"
 SECRET_ARGS=()
-if gcloud secrets describe routes-api-key >/dev/null 2>&1; then
-  gcloud secrets add-iam-policy-binding routes-api-key --member "serviceAccount:${SA}" \
-    --role roles/secretmanager.secretAccessor >/dev/null
-  SECRET_ARGS=(--set-secrets GOOGLE_ROUTES_API_KEY=routes-api-key:latest)
-else
-  echo "routes-api-key がないため、Google Routes なしでデプロイします(体験デモとGeminiは動きます)。"
-fi
+if [ "${#SECRETS[@]}" -gt 0 ]; then SECRET_ARGS=(--set-secrets "$(IFS=,; echo "${SECRETS[*]}")"); fi
 
 # max-instances=1 keeps the in-process rate limits meaningful and caps cost.
 gcloud run deploy "$SERVICE" --source . --region "$REGION" \

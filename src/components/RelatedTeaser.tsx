@@ -30,8 +30,8 @@ export default function RelatedTeaser({ from, to, topicIds }: { from: Spot; to: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from.id, to.id, topicsKey]);
   return <View style={s.wrap}>
-    <Text style={[t.std16N170, { color: c.body }]}>{generated ?? fixed}</Text>
-    {generated && <Text style={[t.note14N150, { color: c.sub }]}>この一文は、出典を確認した事実だけを使ってGeminiが作成しました。</Text>}
+    <Text style={[t.std16N170, { color: c.ink }]}>{generated ?? fixed}</Text>
+    {generated && <Text style={[t.note14N150, { color: c.sepia }]}>Geminiが、出典を確認した事実だけで作った一文です。</Text>}
   </View>;
 }
 

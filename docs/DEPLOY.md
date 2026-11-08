@@ -47,13 +47,24 @@ iOS/AndroidのExpoアプリ ──────────> 同じ /v1/* を呼�
    printf '%s' '<作ったキー>' | gcloud secrets create routes-api-key --data-file=-
    ```
 
-3. デプロイする。初回は「Artifact Registryのリポジトリを作るか」と聞かれるので `Y` で答える。ビルドに数分かかる。最後に表示される `デプロイ先` のURLが、審査員に渡すURLになる。
+3. (Web版でGoogleマップを出すとき)Maps JavaScript API用のキーを作る。このキーはブラウザに渡るので、必ず使える場所を絞る。
+   - 「APIとサービス」→「ライブラリ」で Maps JavaScript API を有効にする。
+   - 「認証情報」→「APIキー」で作り、「アプリケーションの制限」を「ウェブサイト」にして `http://localhost:8081/*` を登録する。「APIの制限」は Maps JavaScript API だけにする。
+   - Cloud Shellで保存する。初回デプロイで出たURL(`https://michi-xxxx.a.run.app/*`)を、あとでキーのウェブサイト制限に追加する。
+
+   ```bash
+   printf '%s' '<地図用のキー>' | gcloud secrets create maps-browser-key --data-file=-
+   ```
+
+   キーがないとWeb版の地図は略図になる。スマホアプリ(Android)はキーなしでもGoogleマップで表示される。
+
+4. デプロイする。初回は「Artifact Registryのリポジトリを作るか」と聞かれるので `Y` で答える。ビルドに数分かかる。最後に表示される `デプロイ先` のURLが、審査員に渡すURLになる。
 
    ```bash
    bash scripts/deploy-cloudrun.sh <プロジェクトID>
    ```
 
-4. `/health` が `{"ok":true,"routesConfigured":true,"geminiConfigured":true}` を返すか確かめる。Geminiが失敗しても画面は固定文で動き続けるので、興味の入力で返ってくる一言が変わるかも画面で確かめる。
+5. `/health` が `{"ok":true,"routesConfigured":true,"geminiConfigured":true}` を返すか確かめる。Geminiが失敗しても画面は固定文で動き続けるので、興味の入力で返ってくる一言が変わるかも画面で確かめる。
 
 ## 2回目以降
 

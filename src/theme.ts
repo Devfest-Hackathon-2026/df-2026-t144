@@ -1,50 +1,57 @@
 import { Platform } from 'react-native';
 import type { TextStyle } from 'react-native';
 
-// Values copied from the Digital Agency Design System tokens
-// (@digital-go-jp/design-tokens 2.1.0, MIT). Use these names instead of raw hex.
-// Key color: DADS green-800 (5.4:1 on white), so white text on it and green text on white both pass 4.5:1.
+// Art direction: night navy + vermilion red + washi paper (see the key visual).
+// Readability rules kept from the Digital Agency Design System: body text 16px,
+// notes 14px minimum, text contrast 4.5:1 or more against its background.
 export const colors = {
-  key: '#197A4B', // green-800
-  keyDark: '#115A36', // green-900, pressed state
-  keyBg: '#E6F5EC', // green-50, selected / notice background
-  keyLine: '#C2E5D1', // green-100
-  text: '#1A1A1A', // solid-gray-900, headings
-  body: '#333333', // solid-gray-800, body text
-  sub: '#666666', // solid-gray-600, secondary text (5.7:1)
-  border: '#949494', // solid-gray-420, boundaries of inputs and controls (3:1)
-  divider: '#CCCCCC', // solid-gray-200
-  surface: '#FFFFFF',
-  surfaceAlt: '#F2F2F2', // solid-gray-50
-  link: '#00118F', // blue-1000
-  error: '#CE0000', // red-900
-  errorBg: '#FDEEEE', // red-50
-  focus: '#FFD43D', // yellow-300, with black (DADS focus indicator)
-  black: '#000000',
+  navy: '#0B1631', // app background
+  navyCard: '#14223F', // cards on navy
+  navyRaised: '#1D2D52', // inputs, pressed rows
+  line: '#33456E', // borders on navy (3:1 vs navy)
+  red: '#D7192F', // key color; white text on it is 5.2:1
+  redDark: '#A30F22',
+  redText: '#FF6B7C', // red used as text on navy (5.4:1)
   white: '#FFFFFF',
-  water: '#C0E4FF', // light-blue-200, map only
-  road: '#FFFFFF',
-  ground: '#E6E6E6', // solid-gray-100, map only
-  user: '#0031D8', // blue-800, current position on the map
+  mist: '#C9D1E3', // secondary text on navy
+  muted: '#9AA6C4', // notes on navy (6:1)
+  paper: '#F3EADA', // discovery cards
+  paperDeep: '#E2D2B4',
+  ink: '#2B2219', // text on paper
+  sepia: '#6E5233', // secondary text on paper (5.9:1)
+  link: '#A9C2FF',
+  focus: '#FFD43D', // DADS focus ring color, with black
+  black: '#000000',
+  user: '#3D8BFF', // current position
+  mapRoad: '#2A3A60',
+  mapGround: '#101D3B',
+  mapWater: '#1E3E6E',
 };
 
 export const radius = { s: 4, m: 8, l: 16, full: 9999 };
 
-const family = Platform.select({ web: "'Noto Sans JP', sans-serif", default: undefined });
-const style = (fontSize: number, bold: boolean, lineHeight: number, spacing = 0.02): TextStyle => ({
-  fontFamily: family, fontSize, fontWeight: bold ? '700' : '400', lineHeight: Math.round(fontSize * lineHeight), letterSpacing: fontSize * spacing,
+const bodyFamily = Platform.select({ web: "'Noto Sans JP', sans-serif", default: undefined });
+// Native loads DelaGothicOne_400Regular with expo-font (App.tsx); web uses Google Fonts.
+export const displayFamily = Platform.select({ web: "'Dela Gothic One', 'Noto Sans JP', sans-serif", default: 'DelaGothicOne_400Regular' });
+
+const body = (fontSize: number, bold: boolean, lineHeight: number): TextStyle => ({
+  fontFamily: bodyFamily, fontSize, fontWeight: bold ? '700' : '400', lineHeight: Math.round(fontSize * lineHeight), letterSpacing: fontSize * 0.02,
+});
+const display = (fontSize: number, lineHeight = 1.3): TextStyle => ({
+  fontFamily: displayFamily, fontSize, lineHeight: Math.round(fontSize * lineHeight), letterSpacing: fontSize * 0.02,
 });
 
-// DADS text styles: Std-<size><N|B>-<line height %>. 14px only for notes, as DADS allows.
 export const text = {
-  std28B150: style(28, true, 1.5, 0.01),
-  std24B150: style(24, true, 1.5),
-  std20B150: style(20, true, 1.5),
-  std18B160: style(18, true, 1.6),
-  std16B170: style(16, true, 1.7),
-  std16N170: style(16, false, 1.7),
-  dns16N130: style(16, false, 1.3, 0),
-  oln16B100: style(16, true, 1.25),
-  note14N150: style(14, false, 1.5),
-  note14B150: style(14, true, 1.5),
+  display40: display(40, 1.15),
+  display32: display(32),
+  display26: display(26),
+  display22: display(22),
+  display18: display(18, 1.4),
+  std20B150: body(20, true, 1.5),
+  std18B160: body(18, true, 1.6),
+  std16B170: body(16, true, 1.7),
+  std16N170: body(16, false, 1.7),
+  oln16B100: body(16, true, 1.25),
+  note14N150: body(14, false, 1.5),
+  note14B150: body(14, true, 1.5),
 };

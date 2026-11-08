@@ -102,6 +102,12 @@ export function createHandler({ catalog, env = process.env, fetchImpl = fetch, n
       send(200, { ok: true, routesConfigured: Boolean(env.GOOGLE_ROUTES_API_KEY), geminiConfigured: Boolean(gemini?.enabled) });
       return;
     }
+    // Browser key for the Maps JavaScript API. It is public by design and must be
+    // restricted to this site's URL (HTTP referrer) and to the Maps JavaScript API.
+    if (path === '/v1/config' && request.method === 'GET') {
+      send(200, { mapsApiKey: env.GOOGLE_MAPS_BROWSER_KEY || null });
+      return;
+    }
     const endpoint = endpoints[path];
     if (!endpoint || request.method !== 'POST') {
       request.resume();

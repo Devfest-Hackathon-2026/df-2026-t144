@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@expo-google-fonts/dela-gothic-one':
+        specifier: 0.4.1
+        version: 0.4.1
       '@expo/metro-runtime':
         specifier: ~58.0.17
         version: 58.0.17(@expo/log-box@58.0.15)(expo@58.0.23)(react-dom@19.3.0(react@19.3.0))(react-native@0.88.1(@babel/core@7.29.13(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.0)(supports-color@8.1.1))(react@19.3.0)
@@ -20,6 +23,9 @@ importers:
       expo-constants:
         specifier: ~58.0.15
         version: 58.0.15(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.13(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
+      expo-font:
+        specifier: ~58.0.11
+        version: 58.0.11(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.13(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.0)(supports-color@8.1.1))(react@19.3.0)
       expo-location:
         specifier: ~58.0.20
         version: 58.0.20(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.13(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.0)(supports-color@8.1.1))(react@19.3.0)(supports-color@8.1.1)(typescript@6.0.3)
@@ -414,6 +420,9 @@ packages:
   '@babel/types@7.29.11':
     resolution: {integrity: sha512-WCsemW40Cpc6gouC1SrY6PBaZ+oLRlEVY9XBvZBI7il/HyUrb2nJ505wE1MHEFyDZNnrWDEuy4jL50WVHfTTSQ==}
     engines: {node: '>=6.9.0'}
+
+  '@expo-google-fonts/dela-gothic-one@0.4.1':
+    resolution: {integrity: sha512-+SqDc2MBfQdDeTsVZs8cw0QL5plZgTTyuZerkiwZVwoygG+//WMrOZ/d2QC37DlJWRNN69MVSNqo3d9xg0iunw==}
 
   '@expo/cli@58.1.19':
     resolution: {integrity: sha512-zoLhSlFnln0xn1fiW0+kb1J0lNv06HAy+FQ27HHwEEWoAClCE13FnTQBOW5bOVYc3c7hsGM8ypKcZGS7RGqjQA==}
@@ -2736,6 +2745,8 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.29.13
       '@babel/helper-validator-identifier': 7.29.7
+
+  '@expo-google-fonts/dela-gothic-one@0.4.1': {}
 
   '@expo/cli@58.1.19(@expo/dom-webview@58.0.2)(@expo/metro-runtime@58.0.17)(expo-constants@58.0.15(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.13(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3))(expo-font@58.0.11(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.13(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.0)(supports-color@8.1.1))(react@19.3.0))(expo@58.0.23)(react-dom@19.3.0(react@19.3.0))(react-native@0.88.1(@babel/core@7.29.13(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.0)(supports-color@8.1.1))(react@19.3.0)(supports-color@8.1.1)(typescript@6.0.3)':
     dependencies:
