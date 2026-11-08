@@ -18,7 +18,7 @@ CodexとClaude Codeが作業前に読むルール。人が書くときも同じ�
 | --- | --- |
 | アプリ | Expo SDK 58 / React Native 0.88 / TypeScript。主対象はiOS・Android。React Native Webは画面確認と審査員向けデモURLに使う |
 | サーバー | Node 24、`node:http` だけの小さなサーバー(`server/*.mjs`)。Cloud Runで動かす |
-| AI | `@google/genai`(`vertexai: true`)。Cloud Runのサービスアカウント(ADC)で認証し、キーを持たない |
+| AI | Vertex AIのGemini REST API(`server/gemini.mjs`)。Cloud Runのサービスアカウントのトークンで認証し、キーを持たない。SDKを入れずに済むので、サーバーは依存ゼロのまま |
 | データ | `src/data/catalog.json` が唯一の元。型は `src/types.ts` |
 | パッケージ | pnpm 11(`pnpm-lock.yaml`)。npmやyarnでlockを作らない |
 
@@ -30,13 +30,14 @@ AIエージェントは学習データにある旧APIを書きやすい。新し
 | --- | --- | --- |
 | 経路 | Directions API、Distance Matrix API、JSの `DirectionsService` / `DistanceMatrixService` | Routes API `routes.googleapis.com/directions/v2:computeRoutes`。`X-Goog-FieldMask` 必須、`travelMode: 'WALK'` |
 | 場所 | Places API(旧)、`PlacesService` | 必要になったらPlaces API (New) |
-| Gemini SDK | `@google/generative-ai`(サポート終了) | `@google/genai` |
+| Gemini | `@google/generative-ai`(サポート終了)、AI StudioのAPIキー、`generativelanguage.googleapis.com` | `aiplatform.googleapis.com/v1/projects/{project}/locations/global/publishers/google/models/{model}:generateContent`(`server/gemini.mjs` 経由) |
 | モデル | `gemini-2.x`、`gemini-3.6-flash`(Vertex AIで11/19停止) | `gemini-3.8-flash`。コードに直書きせず環境変数 `GEMINI_MODEL` から読む。リージョンは `global` |
 
 ## Geminiの使い方
 
-- Geminiに渡す事実は `Spot.facts` だけ。出力はJSONスキーマで受け、サーバー側で検証する。
-- 解説文には使った事実のID(`usedFactIds`)を返させる。`facts` にないIDを含む出力は捨てる。
+- Geminiに渡す事実は `Spot.facts` だけ。出力はJSONスキーマ(`responseSchema`)で受け、サーバー側で検証する。
+- 生成文は `checkGeneratedText`(`server/ai.mjs`)を通す。`facts` にないID、使った事実にない数字、次のスポットのネタバレ(`spoilerWords`)、長さ超過のどれかがあれば捨てる。
+- Geminiの呼び出しは `server/` だけで行う。アプリから直接呼ばない。
 - 解説はデモ前に事前生成し(`pnpm stories:draft`)、人が出典と照合して `reviewStatus: "verified"` にしたものだけアプリに出す。
 - ライブで呼ぶのは「興味の言葉 → 視点タグ」と「次の『？』へつなぐ一言」の2か所。失敗したら固定文に戻し、画面を止めない。
 - おすすめの順位はコード(タグの一致数)で決める。Geminiに順位を決めさせない。順位の理由を説明できなくなる。

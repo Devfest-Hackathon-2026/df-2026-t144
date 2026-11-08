@@ -161,6 +161,6 @@ test('health endpoint does not call Google and reports configured status only', 
   let calls = 0;
   const handler = createHandler({ catalog, env: {}, fetchImpl: async () => { calls += 1; } });
   const result = await invoke(handler, { method: 'GET', path: '/health' });
-  assert.deepEqual(result.json, { ok: true, routesConfigured: false });
+  assert.deepEqual(result.json, { ok: true, routesConfigured: false, geminiConfigured: false });
   assert.equal(calls, 0);
 });
