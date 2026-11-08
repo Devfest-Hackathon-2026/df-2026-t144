@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { apiConfigured, fetchTeaser } from '../apiClient';
-import { colors as c } from '../theme';
+import { colors as c, text as t } from '../theme';
 import type { Spot } from '../types';
 
 // One request per (from, to, topics) per app session.
@@ -30,13 +30,11 @@ export default function RelatedTeaser({ from, to, topicIds }: { from: Spot; to: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from.id, to.id, topicsKey]);
   return <View style={s.wrap}>
-    <Text style={s.text}>{generated ?? fixed}</Text>
-    {generated && <Text style={s.byline}>Gemini · 出典つきの事実だけから作成</Text>}
+    <Text style={[t.std16N170, { color: c.body }]}>{generated ?? fixed}</Text>
+    {generated && <Text style={[t.note14N150, { color: c.sub }]}>この一文は、出典を確認した事実だけを使ってGeminiが作成しました。</Text>}
   </View>;
 }
 
 const s = StyleSheet.create({
-  wrap: { gap: 3 },
-  text: { color: c.ink, fontSize: 12, lineHeight: 22 },
-  byline: { color: '#7D9465', fontSize: 9 },
+  wrap: { gap: 4 },
 });

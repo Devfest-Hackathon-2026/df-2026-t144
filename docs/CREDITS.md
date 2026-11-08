@@ -44,6 +44,13 @@
 
 「未確認」の行は、提出前に各サイトの利用規約を読んで埋める。
 
+## デザイン
+
+| 名前 | 提供元 | ライセンス | 用途 |
+| --- | --- | --- | --- |
+| [デジタル庁デザインシステム(DADS)](https://design.digital.go.jp/dads/) のデザイントークン(`@digital-go-jp/design-tokens` 2.1.0) | デジタル庁 | MIT | 色・文字サイズ・行間・角丸の値を `src/theme.ts` に転記。フォーカス表示の仕様 |
+| [Noto Sans JP](https://fonts.google.com/noto/specimen/Noto+Sans+JP) | Google Fonts | SIL Open Font License 1.1 | Web版の本文フォント |
+
 ## 画像・アイコン
 
-アプリ内のアイコン・地図の略図・スポットの挿絵は、すべて `react-native-svg` で自作した図形。外部の画像素材は使っていない。
+アプリ内のアイコンと地図の略図は、すべて `react-native-svg` で自作した図形。外部の画像素材は使っていない。

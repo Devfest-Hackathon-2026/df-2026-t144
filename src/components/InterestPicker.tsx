@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { apiConfigured, fetchInterests } from '../apiClient';
 import { matchTopicsByKeywords, toggleTopic } from '../interests';
-import { colors as c } from '../theme';
+import { colors as c, radius, text as t } from '../theme';
+import { Icon } from '../ui';
 import type { Topic } from '../types';
 
 type Props = { topics: Topic[]; selected: string[]; onChange: (topicIds: string[]) => void };
 
-/** "今日は、何が気になる？" — free text goes to Gemini (via the server) and comes back as fixed topic tags. */
+/** Free text goes to Gemini (via the server) and comes back as fixed topic tags; tags can also be picked directly. */
 export default function InterestPicker({ topics, selected, onChange }: Props) {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,54 +34,53 @@ export default function InterestPicker({ topics, selected, onChange }: Props) {
       setLoading(false);
     }
     if (topicIds.length === 0) {
-      setMessage({ body: '近い視点が見つかりませんでした。下のタグから選べます。', byGemini: false });
+      setMessage({ body: '当てはまる分類が見つかりませんでした。下の一覧から選んでください。', byGemini: false });
       return;
     }
     onChange(topicIds);
     const labels = topics.filter((topic) => topicIds.includes(topic.id)).map((topic) => `「${topic.label}」`).join('');
-    setMessage({ body: reply ? `${reply} ${labels}の「？」を先に並べました。` : `${labels}の「？」を先に並べました。`, byGemini });
+    setMessage({ body: `${reply ? `${reply}\n` : ''}${labels}に当てはまる「？」を上に並べました。`, byGemini });
   }
 
-  return <View style={s.card}>
-    <Text style={s.eyebrow}>WHAT CATCHES YOUR EYE?</Text>
-    <Text style={s.title}>今日は、何が気になる？</Text>
-    <View style={s.inputRow}>
-      <TextInput value={text} onChangeText={setText} onSubmitEditing={() => void ask()} placeholder="例：水路が好き、幕末の話" placeholderTextColor="#9AA494"
-        maxLength={80} returnKeyType="search" accessibilityLabel="気になることを入力" style={s.input} />
-      <Pressable accessibilityRole="button" accessibilityLabel="気になることで探す" onPress={() => void ask()} disabled={!text.trim() || loading}
-        style={({ pressed }) => [s.ask, (!text.trim() || loading) && s.disabled, pressed && s.pressed]}>
-        {loading ? <ActivityIndicator color={c.lime} /> : <Text style={s.askText}>探す</Text>}
-      </Pressable>
+  return <View style={s.wrap}>
+    <Text style={[t.std20B150, { color: c.text }]} accessibilityRole="header">興味のあること</Text>
+    <Text style={[t.std16N170, { color: c.body }]}>入力するか一覧から選ぶと、関係する「？」を上に並べます。</Text>
+    <View style={s.field}>
+      <Text nativeID="interest-label" style={[t.std16B170, { color: c.text }]}>気になること（自由入力）</Text>
+      <View style={s.inputRow}>
+        <TextInput value={text} onChangeText={setText} onSubmitEditing={() => void ask()} placeholder="例：水路、幕末の話" placeholderTextColor={c.sub}
+          maxLength={80} returnKeyType="search" accessibilityLabel="気になること（自由入力）" style={[t.std16N170, s.input]} />
+        <Pressable accessibilityRole="button" accessibilityLabel="入力した内容で並べ替える" onPress={() => void ask()} disabled={!text.trim() || loading}
+          style={({ pressed }) => [s.ask, (!text.trim() || loading) && s.disabled, pressed && s.pressed]}>
+          {loading ? <ActivityIndicator color={c.white} /> : <Text style={[t.oln16B100, { color: text.trim() ? c.white : c.sub }]}>反映</Text>}
+        </Pressable>
+      </View>
     </View>
-    {message && <View style={s.message}>
-      <Text style={s.messageText}>{message.body}</Text>
-      {message.byGemini && <Text style={s.byline}>Geminiがあなたの言葉を視点タグに分けました。並び順はタグの一致数で決めています。</Text>}
+    {message && <View style={s.message} accessibilityLiveRegion="polite">
+      <Text style={[t.std16N170, { color: c.body }]}>{message.body}</Text>
+      {message.byGemini && <Text style={[t.note14N150, { color: c.sub }]}>Geminiが入力を分類しました。並び順は、分類が一致した数で決めています。</Text>}
     </View>}
     <View style={s.chips}>{topics.map((topic) => {
       const active = selected.includes(topic.id);
-      return <Pressable key={topic.id} accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={`${topic.label}を${active ? '外す' : '選ぶ'}`}
+      return <Pressable key={topic.id} accessibilityRole="checkbox" accessibilityState={{ checked: active }} accessibilityLabel={topic.label}
         onPress={() => { setMessage(null); onChange(toggleTopic(selected, topic.id)); }} style={[s.chip, active && s.chipActive]}>
-        <Text style={[s.chipText, active && s.chipTextActive]}>{topic.label}</Text>
+        {active && <Icon name="check" color={c.key} size={16} />}
+        <Text style={[active ? t.note14B150 : t.note14N150, { color: active ? c.key : c.body }]}>{topic.label}</Text>
       </Pressable>;
     })}</View>
+    <Text style={[t.note14N150, { color: c.sub }]}>3つまで選べます。</Text>
   </View>;
 }
 
 const s = StyleSheet.create({
-  card: { backgroundColor: c.white, borderWidth: 1, borderColor: c.line, borderRadius: 18, padding: 16, marginTop: 18, gap: 10 },
-  eyebrow: { color: c.muted, fontSize: 9, letterSpacing: 1.6, fontWeight: '700' },
-  title: { fontSize: 16, fontWeight: '700', color: c.ink, lineHeight: 25 },
+  wrap: { gap: 8, marginTop: 8 },
+  field: { gap: 4, marginTop: 4 },
   inputRow: { flexDirection: 'row', gap: 8 },
-  input: { flex: 1, minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: c.line, backgroundColor: c.paper, paddingHorizontal: 12, fontSize: 13, color: c.ink },
-  ask: { minWidth: 64, minHeight: 44, borderRadius: 12, backgroundColor: c.ink, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
-  askText: { color: c.white, fontSize: 13, fontWeight: '700' },
-  disabled: { opacity: .4 }, pressed: { opacity: .8 },
-  message: { backgroundColor: '#EDF2DC', borderRadius: 12, padding: 12, gap: 6 },
-  messageText: { color: c.ink, fontSize: 12, lineHeight: 20 },
-  byline: { color: '#7D9465', fontSize: 9, lineHeight: 15 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  chip: { borderRadius: 18, backgroundColor: c.light, paddingHorizontal: 12, minHeight: 32, justifyContent: 'center' },
-  chipActive: { backgroundColor: c.ink },
-  chipText: { fontSize: 11, color: c.ink, fontWeight: '600' },
-  chipTextActive: { color: c.white },
+  input: { flex: 1, minHeight: 48, borderRadius: radius.m, borderWidth: 1, borderColor: c.border, backgroundColor: c.white, paddingHorizontal: 12, color: c.text },
+  ask: { minWidth: 72, minHeight: 48, borderRadius: radius.m, backgroundColor: c.key, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  disabled: { backgroundColor: c.surfaceAlt, borderWidth: 1, borderColor: c.divider }, pressed: { backgroundColor: c.keyDark },
+  message: { backgroundColor: c.keyBg, borderRadius: radius.m, padding: 12, gap: 4 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: radius.full, borderWidth: 1, borderColor: c.border, backgroundColor: c.white, paddingHorizontal: 12, minHeight: 40 },
+  chipActive: { borderWidth: 2, borderColor: c.key, backgroundColor: c.keyBg },
 });
