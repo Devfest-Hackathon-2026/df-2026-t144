@@ -23,8 +23,10 @@ GOOGLE_ROUTES_API_KEY=your-server-side-key
 # 同じWi-Fiのスマホから接続するときだけ指定
 HOST=0.0.0.0
 PORT=8787
-# 任意。プロセス内の簡易上限
-MAX_GOOGLE_CALLS_PER_DAY=100
+# 必須。この時刻まで有料APIを使う。未設定・形式違いなら呼ばない
+PAID_API_UNTIL=2026-11-14T23:59:59+09:00
+# 任意。プロセス内の簡易上限(50が最大)
+MAX_GOOGLE_CALLS_PER_DAY=50
 MAX_REQUESTS_PER_MINUTE=10
 # Webプレビューを使う場合のみ。実際の開発URLに合わせる
 ALLOWED_ORIGINS=http://localhost:8081,http://127.0.0.1:8081

@@ -67,6 +67,15 @@ function GoogleMap(props: MapProps & { apiKey: string; onFail: () => void }) {
     });
   }, [maps]);
 
+  // Fit only when the route changes. The app re-renders every 10 s (and the demo
+  // position is a new object each time), which must not undo the user's pan/zoom.
+  useEffect(() => {
+    if (!maps || !map.current || !props.route?.coordinates.length) return;
+    const bounds = new maps.LatLngBounds();
+    props.route.coordinates.forEach((p) => bounds.extend({ lat: p.latitude, lng: p.longitude }));
+    map.current.fitBounds(bounds, { top: 190, bottom: 70, left: 40, right: 40 });
+  }, [maps, props.route]);
+
   useEffect(() => {
     if (!maps || !map.current) return;
     overlays.current.forEach((item) => (item.setMap ? item.setMap(null) : (item.map = null)));
@@ -77,9 +86,6 @@ function GoogleMap(props: MapProps & { apiKey: string; onFail: () => void }) {
       const path = props.route.coordinates.map(position);
       add(new maps.Polyline({ map: map.current, path, strokeColor: c.red, strokeOpacity: 1, strokeWeight: 7 }));
       add(new maps.Polyline({ map: map.current, path, strokeOpacity: 0, icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: '#FFFFFF', scale: 2 }, offset: '0', repeat: '12px' }] }));
-      const bounds = new maps.LatLngBounds();
-      path.forEach((p: unknown) => bounds.extend(p));
-      map.current.fitBounds(bounds, { top: 190, bottom: 70, left: 40, right: 40 });
     }
     for (const spot of props.spots) {
       const done = props.discoveredIds.includes(spot.id);

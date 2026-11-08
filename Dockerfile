@@ -1,7 +1,9 @@
 # One Cloud Run service: the Expo web export + the API (routes, Gemini).
 # Build context is the repository root: `gcloud run deploy --source .`
 
-FROM node:24-alpine AS web
+# The build stage is Debian (glibc): some Expo build tools ship glibc-only
+# binaries (e.g. @expo/modules-macros-linux-x64) that pnpm skips on Alpine.
+FROM node:24-slim AS web
 WORKDIR /app
 RUN npm install -g pnpm@11.25.0
 COPY package.json pnpm-lock.yaml .npmrc ./

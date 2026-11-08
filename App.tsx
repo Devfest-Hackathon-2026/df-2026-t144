@@ -12,7 +12,7 @@ import DiscoveryMap from './src/components/Map';
 import InterestPicker from './src/components/InterestPicker';
 import RelatedTeaser from './src/components/RelatedTeaser';
 import { SPOTS, DESTINATIONS, DEMO_ORIGIN, STORIES, TOPICS } from './src/data/spots';
-import { addDiscovery, createDemoRoutes, distanceMeters, getCameraUnlockState, getUnlockState, sanitizeDiscoveries } from './src/domain';
+import { addDiscovery, createDemoRoutes, distanceMeters, formatDistance, getAreaStatus, getCameraUnlockState, getUnlockState, sanitizeDiscoveries } from './src/domain';
 import { pickStory, rankSpots, topicScore } from './src/interests';
 import { useLocation } from './src/useLocation';
 import { fetchRoutes } from './src/routesClient';
@@ -73,6 +73,7 @@ function Michi() {
   const discoveredIds = modeDiscoveries.map(d => d.spotId);
   const selected = SPOTS.find(spot => spot.id === selectedId);
   const currentFix: LocationFix | null = mode === 'demo' ? { ...demoPosition, accuracy: 0, timestamp: now } : location.fix;
+  const area = mode === 'gps' ? getAreaStatus(location.fix, SPOTS) : null;
   const visibleSpots = walking && route?.kind === 'discovery' ? SPOTS.filter(spot => route.spotIds.includes(spot.id)) : rankSpots(SPOTS, topicIds);
   const nextSpot = walking && route ? route.spotIds.map(id => SPOTS.find(spot => spot.id === id)).find(spot => spot && !discoveredIds.includes(spot.id)) : undefined;
   const routeCompleted = walking && route?.kind === 'discovery' && route.spotIds.every(id => discoveredIds.includes(id));
@@ -90,7 +91,7 @@ function Michi() {
   }, []);
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 10000); return () => clearInterval(timer); }, []);
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(null), 4000); return () => clearTimeout(timer); }, [notice]);
-  useEffect(() => { routeRequest.current++; setGoogleRoutes(null); setRouteWarnings([]); setRouteError(null); setRoutesLoading(false); setWalking(false); setSelectedId(null); }, [mode, destinationId, budget, topicIds]);
+  useEffect(() => { routeRequest.current++; setGoogleRoutes(null); setRouteWarnings([]); setRouteError(null); setRoutesLoading(false); setWalking(false); setSelectedId(null); setSelectedKind('discovery'); }, [mode, destinationId, budget, topicIds]);
 
   async function loadRoutes() {
     const fix = location.fix;
@@ -221,6 +222,11 @@ function Michi() {
           {mode === 'demo' ? <Text style={[t.note14N150, { color: c.muted }]}>DEMO：位置と所要時間は体験用の仮データです。</Text>
             : <View style={s.rowBetween}><Text style={[t.note14N150, { color: c.muted, flex: 1 }]}>{gpsStatus}</Text><Pressable accessibilityRole="button" onPress={() => void location.retry()} style={s.textButton}><Text style={[t.note14B150, s.link]}>再取得</Text></Pressable></View>}
           {locationHelp}
+          {area && !area.inArea && <View style={s.alert}>
+            <Text style={[t.std16B170, { color: c.white }]}>現在地は、対象エリアの外です</Text>
+            <Text style={[t.std16N170, { color: c.mist }]}>{`いちばん近い「？」（${area.nearestSpot.name}）まで約${formatDistance(area.distanceMeters)}。今は京都三条・高瀬川周辺で発見できます。現地に着くまでは、デモで同じ体験ができます。`}</Text>
+            <Button label="体験デモで試す" variant="light" onPress={() => changeMode('demo')} />
+          </View>}
 
           {mode === 'demo' && loaded && modeDiscoveries.length === 0 && !walking && <View style={s.guide}>
             <View style={s.hero} accessibilityRole="header" accessibilityLabel="いつもの道に、まだ知らない物語がある。">
@@ -374,7 +380,7 @@ function SpotDetail({ spot, mode, discovered, fix, saving, loaded, onClose, onDi
   const header = <View style={s.sheetHeader}>
     <Pressable accessibilityRole="button" accessibilityLabel="閉じる" onPress={onClose} disabled={saving} style={s.close}><Icon name="back" /></Pressable>
     <Text style={[t.std16B170, { color: c.white }]}>{discovered ? `${spot.category}・${mode === 'demo' ? 'デモ' : '現地'}` : '発見中…'}</Text>
-    <View style={{ width: 48 }} />
+    <View style={s.headerSide}>{mode === 'demo' && <Tag label="DEMO" />}</View>
   </View>;
 
   if (!discovered) return <>
@@ -432,7 +438,7 @@ function CardReveal({ spot, discovery, onShare, onStory, onBook, onClose }: { sp
   useEffect(() => { Animated.spring(pop, { toValue: 1, friction: 6, tension: 60, useNativeDriver: nativeDriver }).start(); }, [pop]);
   const cardMotion = { opacity: pop.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }), transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }, { rotate: pop.interpolate({ inputRange: [0, 1], outputRange: ['-14deg', '-1.5deg'] }) }] };
   return <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.detailContent}>
-    <View style={s.sheetHeader}><View style={{ width: 48 }} /><View /><Pressable accessibilityRole="button" accessibilityLabel="閉じる" onPress={onClose} style={s.close}><Icon name="close" /></Pressable></View>
+    <View style={s.sheetHeader}><View style={[s.headerSide, { alignItems: 'flex-start' }]}>{discovery.mode === 'demo' && <Tag label="DEMO" />}</View><View /><Pressable accessibilityRole="button" accessibilityLabel="閉じる" onPress={onClose} style={s.close}><Icon name="close" /></Pressable></View>
     <View style={[s.meta, { justifyContent: 'center' }]}><Icon name="sparkle" color={c.red} size={22} /><Slant><Text style={[t.display22, { color: c.navy }]} accessibilityRole="header">発見カードを獲得！</Text></Slant></View>
     <View style={s.cardStack}>
       <View style={[s.cardBack, { transform: [{ rotate: '6deg' }] }]} />
@@ -506,6 +512,7 @@ const s = StyleSheet.create({
   sheet: { width: '100%', maxWidth: 480, backgroundColor: c.navy, borderTopLeftRadius: radius.l, borderTopRightRadius: radius.l, borderTopWidth: 3, borderColor: c.red, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, gap: 8 },
   detailSheet: { maxHeight: '94%', paddingBottom: 0 },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  headerSide: { minWidth: 48, alignItems: 'flex-end' },
   close: { width: 48, height: 48, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: c.navyCard },
   modalNotice: { backgroundColor: c.red, padding: 12, borderRadius: radius.m },
   detailContent: { paddingBottom: 24, gap: 16 },

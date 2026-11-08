@@ -49,3 +49,17 @@ test('demo detour picks the spots that match the user and keeps walking order', 
   const people = createDemoRoutes(cityHall, 5, catalog.spots, catalog.demoOrigin, ['people']);
   assert.deepEqual(people[1].spotIds, ['ikedaya', 'takase-ichino-funairi']);
 });
+
+// "最初の「？」を体験する" opens the first spot of the discovery route and does nothing without one.
+test('every demo destination, budget and single topic has a discovery route with catalog spots', () => {
+  const ids = new Set(catalog.spots.map((spot) => spot.id));
+  for (const destination of catalog.destinations) {
+    for (const budget of [5, 10] as const) {
+      for (const topicIds of [[], ...catalog.topics.map((topic) => [topic.id])]) {
+        const discovery = createDemoRoutes(destination, budget, catalog.spots, catalog.demoOrigin, topicIds).find((route) => route.kind === 'discovery');
+        assert.ok(discovery && discovery.spotIds.length > 0, `${destination.id} +${budget} [${topicIds}]`);
+        assert.ok(discovery.spotIds.every((id) => ids.has(id)));
+      }
+    }
+  }
+});

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { addDiscovery, createDemoRoutes, distanceMeters, getUnlockState, sanitizeDiscoveries } from '../src/domain.ts';
+import { addDiscovery, createDemoRoutes, distanceMeters, formatDistance, getAreaStatus, getUnlockState, sanitizeDiscoveries } from '../src/domain.ts';
 import type { Coordinate, Destination, Discovery, LocationFix, Spot } from '../src/types.ts';
 
 const NOW = Date.parse('2026-11-08T03:00:00.000Z');
@@ -143,4 +143,20 @@ test('discovery is idempotent per mode while a real visit can follow a demo disc
   assert.equal(real[1].discoveredAt, '2026-11-08T03:00:02.000Z');
   assert.deepEqual(addDiscovery(real, '', 'gps', NOW), real);
   assert.deepEqual(addDiscovery(real, 'ikedaya', 'gps', Number.NaN), real);
+});
+
+test('area status flags fixes far from every spot, even with poor accuracy', () => {
+  assert.equal(getAreaStatus(null, SPOTS), null);
+  assert.equal(getAreaStatus(FIX, []), null);
+  const near = getAreaStatus({ ...FIX, ...northBy(1_900), accuracy: 500 }, [SPOT]);
+  assert.equal(near?.inArea, true);
+  const far = getAreaStatus({ ...FIX, ...northBy(2_100) }, [SPOT]);
+  assert.equal(far?.inArea, false);
+  assert.equal(far?.nearestSpot.id, 'sanjo-giboshi');
+  const tokyo = getAreaStatus({ latitude: 35.681, longitude: 139.767, accuracy: 20, timestamp: NOW }, SPOTS);
+  assert.equal(tokyo?.inArea, false);
+  assert.equal(getAreaStatus({ ...FIX, latitude: Number.NaN }, SPOTS), null);
+  assert.equal(formatDistance(1_234), '1.2km');
+  assert.equal(formatDistance(364_000), '364km');
+  assert.equal(formatDistance(44), '40m');
 });

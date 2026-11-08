@@ -176,3 +176,25 @@ export function addDiscovery(existing: Discovery[], spotId: string, mode: Mode, 
   if (cleaned.some((discovery) => discovery.spotId === spotId && discovery.mode === mode)) return cleaned;
   return [...cleaned, { spotId, mode, discoveredAt: new Date(now).toISOString() }];
 }
+
+const SERVICE_AREA_METERS = 2_000;
+
+/** Where the current fix sits relative to the catalog. Ignores fix accuracy: coarse is enough to tell "not in Kyoto". */
+export function getAreaStatus(fix: LocationFix | null | undefined, spots: Spot[]): {
+  inArea: boolean;
+  nearestSpot: Spot;
+  distanceMeters: number;
+} | null {
+  if (!fix) return null;
+  let nearest: { spot: Spot; distance: number } | null = null;
+  for (const spot of spots) {
+    const distance = distanceMeters(fix, spot.coordinate);
+    if (Number.isFinite(distance) && (!nearest || distance < nearest.distance)) nearest = { spot, distance };
+  }
+  if (!nearest) return null;
+  return { inArea: nearest.distance <= SERVICE_AREA_METERS, nearestSpot: nearest.spot, distanceMeters: nearest.distance };
+}
+
+export function formatDistance(meters: number): string {
+  return meters < 1_000 ? `${Math.round(meters / 10) * 10}m` : meters < 100_000 ? `${(meters / 1_000).toFixed(1)}km` : `${Math.round(meters / 1_000)}km`;
+}

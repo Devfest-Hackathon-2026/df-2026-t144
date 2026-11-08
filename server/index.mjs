@@ -4,6 +4,7 @@ import { computeRoutes, loadCatalog, RouteError } from './routes.mjs';
 import { createGemini } from './gemini.mjs';
 import { createTeaser, interpretInterest, MAX_IMAGE_BASE64, recognizeSpot } from './ai.mjs';
 import { createStaticHandler } from './static.mjs';
+import { dailyLimit, paidApiDeadline, paidApiOpen } from './paid.mjs';
 
 function positiveInteger(value, fallback, max) {
   const number = Number(value);
@@ -53,18 +54,29 @@ function sameOrigin(origin, host) {
 
 export function createHandler({ catalog, env = process.env, fetchImpl = fetch, now = Date.now, gemini = createGemini({ env, fetchImpl, now }), serveStatic = null }) {
   const allowedOrigins = new Set((env.ALLOWED_ORIGINS || 'http://localhost:8081,http://127.0.0.1:8081').split(',').map((value) => value.trim()).filter(Boolean));
-  const beforeGoogleCall = dailyCounter(now, positiveInteger(env.MAX_GOOGLE_CALLS_PER_DAY, 100, 10_000), 'DAILY_LIMIT', '本日の経路計算の上限に達しました。');
-  const beforeGeminiCall = dailyCounter(now, positiveInteger(env.MAX_GEMINI_CALLS_PER_DAY, 500, 20_000), 'GEMINI_DAILY_LIMIT', '本日のAI利用の上限に達しました。');
+  // Paid APIs stop at PAID_API_UNTIL (missing or invalid: never open) and at
+  // 50 calls a day each. Both are in-memory guards; see server/paid.mjs.
+  const paidOpen = () => paidApiOpen(env, now);
+  const closed = () => new RouteError(503, 'PAID_API_CLOSED', 'Googleの有料APIは利用期間外です。デモモードをご利用ください。');
+  const googleCounter = dailyCounter(now, dailyLimit(env.MAX_GOOGLE_CALLS_PER_DAY), 'DAILY_LIMIT', '本日の経路計算の上限に達しました。');
+  const geminiCounter = dailyCounter(now, dailyLimit(env.MAX_GEMINI_CALLS_PER_DAY), 'GEMINI_DAILY_LIMIT', '本日のAI利用の上限に達しました。');
+  const beforeGoogleCall = () => { if (!paidOpen()) throw closed(); googleCounter(); };
+  const beforeGeminiCall = () => { if (!paidOpen()) throw closed(); geminiCounter(); };
   const routeMinute = minuteWindow(now, positiveInteger(env.MAX_REQUESTS_PER_MINUTE, 10, 120));
   const aiMinute = minuteWindow(now, positiveInteger(env.MAX_AI_REQUESTS_PER_MINUTE, 30, 300));
   // Count every Gemini call against the daily ceiling. A refused call makes the
   // AI helpers fall back to fixed text instead of failing the request.
+  // After the window closes, `enabled` turns false so callers skip Gemini.
   const countedGemini = gemini?.enabled
-    ? { ...gemini, generateJson: async (args) => { beforeGeminiCall(); return gemini.generateJson(args); } }
+    ? { ...gemini, get enabled() { return paidOpen(); }, generateJson: async (args) => { beforeGeminiCall(); return gemini.generateJson(args); } }
     : gemini;
+  const routesKey = () => (paidOpen() ? env.GOOGLE_ROUTES_API_KEY : undefined);
   const inFlight = { routes: 0, ai: 0 };
   const endpoints = {
-    '/v1/routes': { pool: 'routes', maxInFlight: 2, minute: routeMinute, run: (input) => computeRoutes(input, { catalog, apiKey: env.GOOGLE_ROUTES_API_KEY, fetchImpl, beforeGoogleCall }) },
+    '/v1/routes': { pool: 'routes', maxInFlight: 2, minute: routeMinute, run: (input) => {
+      if (env.GOOGLE_ROUTES_API_KEY && !paidOpen()) throw closed();
+      return computeRoutes(input, { catalog, apiKey: env.GOOGLE_ROUTES_API_KEY, fetchImpl, beforeGoogleCall });
+    } },
     '/v1/interests': { pool: 'ai', maxInFlight: 4, minute: aiMinute, run: (input) => interpretInterest(input, { catalog, gemini: countedGemini }) },
     '/v1/teaser': { pool: 'ai', maxInFlight: 4, minute: aiMinute, run: (input) => createTeaser(input, { catalog, gemini: countedGemini }) },
     // Photos are the only large bodies; they go to Gemini and are never written anywhere.
@@ -101,13 +113,19 @@ export function createHandler({ catalog, env = process.env, fetchImpl = fetch, n
       return;
     }
     if (path === '/health' && request.method === 'GET') {
-      send(200, { ok: true, routesConfigured: Boolean(env.GOOGLE_ROUTES_API_KEY), geminiConfigured: Boolean(gemini?.enabled) });
+      const deadline = paidApiDeadline(env);
+      send(200, {
+        ok: true, routesConfigured: Boolean(routesKey()), geminiConfigured: Boolean(countedGemini?.enabled),
+        paidApiUntil: deadline === null ? null : new Date(deadline).toISOString(),
+      });
       return;
     }
     // Browser key for the Maps JavaScript API. It is public by design and must be
     // restricted to this site's URL (HTTP referrer) and to the Maps JavaScript API.
+    // Map loads are billed in the browser and not counted here; after the paid
+    // window the key is withheld and the web app draws the sketch map.
     if (path === '/v1/config' && request.method === 'GET') {
-      send(200, { mapsApiKey: env.GOOGLE_MAPS_BROWSER_KEY || null });
+      send(200, { mapsApiKey: (paidOpen() && env.GOOGLE_MAPS_BROWSER_KEY) || null });
       return;
     }
     const endpoint = endpoints[path];

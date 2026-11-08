@@ -3,8 +3,13 @@
 // Locally, set GEMINI_ACCESS_TOKEN (`gcloud auth print-access-token`) and
 // GOOGLE_CLOUD_PROJECT to try real calls; otherwise callers fall back.
 
+// Every caller (server and scripts) goes through here, so the paid-API window
+// (PAID_API_UNTIL, see paid.mjs) is enforced here as well.
+import { paidApiOpen } from './paid.mjs';
+
 const METADATA = 'http://metadata.google.internal/computeMetadata/v1';
 export const DEFAULT_MODEL = 'gemini-3.8-flash';
+export const MAX_OUTPUT_TOKENS = 2048;
 
 export class GeminiError extends Error {
   constructor(code, message) {
@@ -22,7 +27,8 @@ export function createGemini({ env = process.env, fetchImpl = fetch, now = Date.
   const model = env.GEMINI_MODEL || DEFAULT_MODEL;
   const location = env.GEMINI_LOCATION || 'global';
   const onCloudRun = Boolean(env.K_SERVICE);
-  const enabled = env.GEMINI_ENABLED !== 'false' && (onCloudRun || Boolean(env.GEMINI_ACCESS_TOKEN && env.GOOGLE_CLOUD_PROJECT));
+  const enabled = env.GEMINI_ENABLED !== 'false' && paidApiOpen(env, now)
+    && (onCloudRun || Boolean(env.GEMINI_ACCESS_TOKEN && env.GOOGLE_CLOUD_PROJECT));
   let project = env.GOOGLE_CLOUD_PROJECT || null;
   let token = null;
 
@@ -62,6 +68,8 @@ export function createGemini({ env = process.env, fetchImpl = fetch, now = Date.
    */
   async function generateJson({ system, prompt, schema, temperature = 0.3, timeoutMs = 12_000, images = [] }) {
     if (!enabled) throw new GeminiError('NOT_CONFIGURED', 'Geminiが未設定です。');
+    if (!paidApiOpen(env, now)) throw new GeminiError('PAID_API_CLOSED', '有料APIの利用期間が終わりました。');
+    if (images.length > 1) throw new GeminiError('INVALID_INPUT', '写真は1枚までです。');
     const url = vertexEndpoint({ project: await projectId(), location, model });
     let response;
     try {
@@ -72,7 +80,7 @@ export function createGemini({ env = process.env, fetchImpl = fetch, now = Date.
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: system }] },
           contents: [{ role: 'user', parts: [{ text: prompt }, ...images.map((image) => ({ inlineData: { mimeType: image.mimeType, data: image.data } }))] }],
-          generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature },
+          generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature, maxOutputTokens: MAX_OUTPUT_TOKENS },
         }),
         signal: AbortSignal.timeout(timeoutMs),
       });

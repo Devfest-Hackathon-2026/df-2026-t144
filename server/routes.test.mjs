@@ -5,6 +5,7 @@ import { computeRoutes, decodePolyline, loadCatalog, validateInput, WALK_WARNING
 import { createHandler } from './index.mjs';
 
 const catalog = await loadCatalog();
+const OPEN = '2099-12-31T23:59:59+09:00'; // paid-API window that has not ended
 const input = { origin: catalog.demoOrigin, destinationId: 'city-hall', budgetMinutes: 5 };
 const encoded = '_p~iF~ps|U_ulLnnqC_mqNvxq`@';
 const google = (seconds, warnings = []) => ({ ok: true, json: async () => ({ routes: [{ duration: `${seconds}s`, polyline: { encodedPolyline: encoded }, warnings }] }) });
@@ -161,17 +162,50 @@ test('HTTP applies process-wide request and Google-call ceilings', async () => {
   assert.equal((await invoke(rateHandler)).status, 429);
 
   let calls = 0;
-  const capped = createHandler({ catalog, env: { GOOGLE_ROUTES_API_KEY: 'test', MAX_GOOGLE_CALLS_PER_DAY: '2' }, fetchImpl: async () => { calls += 1; return google(600); } });
+  const capped = createHandler({ catalog, env: { GOOGLE_ROUTES_API_KEY: 'test', MAX_GOOGLE_CALLS_PER_DAY: '2', PAID_API_UNTIL: OPEN }, fetchImpl: async () => { calls += 1; return google(600); } });
   const result = await invoke(capped);
   assert.equal(result.status, 429);
   assert.equal(result.json.error.code, 'DAILY_LIMIT');
   assert.equal(calls, 2);
 });
 
+test('Google Routes calls stop at 50 a day even when env asks for more', async () => {
+  let calls = 0;
+  const handler = createHandler({
+    catalog, env: { GOOGLE_ROUTES_API_KEY: 'test', MAX_GOOGLE_CALLS_PER_DAY: '10000', MAX_REQUESTS_PER_MINUTE: '120', PAID_API_UNTIL: OPEN },
+    fetchImpl: async () => { calls += 1; return google(600); }, now: () => 0,
+  });
+  let last;
+  for (let index = 0; index < 30 && last?.status !== 429; index += 1) last = await invoke(handler);
+  assert.equal(last.json.error.code, 'DAILY_LIMIT');
+  assert.equal(calls, 50);
+});
+
+test('Google Routes is refused after PAID_API_UNTIL or without it, before any call', async () => {
+  const until = '2026-11-14T23:59:59+09:00';
+  let clock = Date.parse(until);
+  let calls = 0;
+  const fetchImpl = async () => { calls += 1; return google(600); };
+  const handler = createHandler({ catalog, env: { GOOGLE_ROUTES_API_KEY: 'test', PAID_API_UNTIL: until }, fetchImpl, now: () => clock });
+  assert.equal((await invoke(handler)).status, 200);
+  const used = calls;
+  clock += 1;
+  const closed = await invoke(handler);
+  assert.equal(closed.status, 503);
+  assert.equal(closed.json.error.code, 'PAID_API_CLOSED');
+  assert.equal(calls, used);
+  const health = await invoke(handler, { method: 'GET', path: '/health' });
+  assert.equal(health.json.routesConfigured, false);
+
+  const unset = createHandler({ catalog, env: { GOOGLE_ROUTES_API_KEY: 'test' }, fetchImpl });
+  assert.equal((await invoke(unset)).json.error.code, 'PAID_API_CLOSED');
+  assert.equal(calls, used);
+});
+
 test('health endpoint does not call Google and reports configured status only', async () => {
   let calls = 0;
   const handler = createHandler({ catalog, env: {}, fetchImpl: async () => { calls += 1; } });
   const result = await invoke(handler, { method: 'GET', path: '/health' });
-  assert.deepEqual(result.json, { ok: true, routesConfigured: false, geminiConfigured: false });
+  assert.deepEqual(result.json, { ok: true, routesConfigured: false, geminiConfigured: false, paidApiUntil: null });
   assert.equal(calls, 0);
 });

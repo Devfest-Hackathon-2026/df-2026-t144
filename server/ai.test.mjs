@@ -11,6 +11,7 @@ import { loadCatalog } from './routes.mjs';
 import { createStaticHandler } from './static.mjs';
 
 const catalog = await loadCatalog();
+const OPEN = '2099-12-31T23:59:59+09:00'; // paid-API window that has not ended
 const fakeGemini = (respond) => {
   const calls = [];
   return { enabled: true, model: 'test-model', calls, generateJson: async (args) => { calls.push(args); return respond(args); } };
@@ -117,7 +118,7 @@ test('photo recognition matches by transcribed text, never tells Gemini the answ
 
 test('recognize endpoint accepts a photo-sized body while other endpoints keep the small limit', async () => {
   const gemini = fakeGemini(() => ({ texts: ['駅伝発祥の地'], scene: '石碑' }));
-  const handler = createHandler({ catalog, env: {}, gemini });
+  const handler = createHandler({ catalog, env: { PAID_API_UNTIL: OPEN }, gemini });
   const big = { spotId: 'ekiden-monument', image: 'A'.repeat(200_000), mimeType: 'image/jpeg' };
   const result = await invoke(handler, { path: '/v1/recognize', body: big });
   assert.equal(result.status, 200);
@@ -127,7 +128,7 @@ test('recognize endpoint accepts a photo-sized body while other endpoints keep t
 
 test('Gemini client sends photos as inline data next to the prompt', async () => {
   let body;
-  const gemini = createGemini({ env: { GOOGLE_CLOUD_PROJECT: 'michi-demo', GEMINI_ACCESS_TOKEN: 't' }, fetchImpl: async (_url, options) => { body = JSON.parse(options.body); return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"texts":[],"scene":""}' }] } }] }) }; } });
+  const gemini = createGemini({ env: { GOOGLE_CLOUD_PROJECT: 'michi-demo', GEMINI_ACCESS_TOKEN: 't', PAID_API_UNTIL: OPEN }, fetchImpl: async (_url, options) => { body = JSON.parse(options.body); return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"texts":[],"scene":""}' }] } }] }) }; } });
   await gemini.generateJson({ system: 's', prompt: 'p', schema: {}, images: [{ mimeType: 'image/png', data: 'QUJD' }] });
   assert.deepEqual(body.contents[0].parts, [{ text: 'p' }, { inlineData: { mimeType: 'image/png', data: 'QUJD' } }]);
 });
@@ -154,7 +155,7 @@ test('Gemini client calls the Vertex AI endpoint with a metadata-server token an
     if (url.endsWith('/project/project-id')) return { ok: true, text: async () => 'michi-demo\n' };
     return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"topicIds":["water"]' }, { text: ',"reply":"ok"}' }] } }] }) };
   };
-  const gemini = createGemini({ env: { K_SERVICE: 'michi' }, fetchImpl, now: () => 0 });
+  const gemini = createGemini({ env: { K_SERVICE: 'michi', PAID_API_UNTIL: OPEN }, fetchImpl, now: () => 0 });
   assert.equal(gemini.model, 'gemini-3.8-flash');
   assert.deepEqual(await gemini.generateJson({ system: 's', prompt: 'p', schema: { type: 'OBJECT' } }), { topicIds: ['water'], reply: 'ok' });
   await gemini.generateJson({ system: 's', prompt: 'p', schema: { type: 'OBJECT' } });
@@ -165,11 +166,12 @@ test('Gemini client calls the Vertex AI endpoint with a metadata-server token an
   assert.equal(calls[0].options.redirect, 'error');
   const body = JSON.parse(calls[0].options.body);
   assert.equal(body.generationConfig.responseMimeType, 'application/json');
+  assert.equal(body.generationConfig.maxOutputTokens, 2048);
   assert.deepEqual(body.contents[0].parts, [{ text: 'p' }]);
 
-  const failing = createGemini({ env: { K_SERVICE: 'michi', GOOGLE_CLOUD_PROJECT: 'michi-demo', GEMINI_ACCESS_TOKEN: 't' }, fetchImpl: async () => ({ ok: false, status: 403 }) });
+  const failing = createGemini({ env: { K_SERVICE: 'michi', GOOGLE_CLOUD_PROJECT: 'michi-demo', GEMINI_ACCESS_TOKEN: 't', PAID_API_UNTIL: OPEN }, fetchImpl: async () => ({ ok: false, status: 403 }) });
   await assert.rejects(failing.generateJson({ system: 's', prompt: 'p', schema: {} }), { code: 'GEMINI_UNAVAILABLE' });
-  const prose = createGemini({ env: { GOOGLE_CLOUD_PROJECT: 'michi-demo', GEMINI_ACCESS_TOKEN: 't' }, fetchImpl: async () => ({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'not json' }] } }] }) }) });
+  const prose = createGemini({ env: { GOOGLE_CLOUD_PROJECT: 'michi-demo', GEMINI_ACCESS_TOKEN: 't', PAID_API_UNTIL: OPEN }, fetchImpl: async () => ({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'not json' }] } }] }) }) });
   assert.equal(prose.enabled, true);
   await assert.rejects(prose.generateJson({ system: 's', prompt: 'p', schema: {} }), { code: 'INVALID_OUTPUT' });
 });
@@ -193,7 +195,7 @@ async function invoke(handler, { body, origin, host, method = 'POST', path: url,
 
 test('AI endpoints answer through HTTP, respect the daily Gemini ceiling and accept same-origin web', async () => {
   const gemini = fakeGemini(() => ({ topicIds: ['craft'], reply: '細部に目が行くタイプですね。' }));
-  const handler = createHandler({ catalog, env: { MAX_GEMINI_CALLS_PER_DAY: '1' }, gemini });
+  const handler = createHandler({ catalog, env: { MAX_GEMINI_CALLS_PER_DAY: '1', PAID_API_UNTIL: OPEN }, gemini });
   const first = await invoke(handler, { path: '/v1/interests', body: { text: '建物の飾り' }, origin: 'https://michi-abc.a.run.app', host: 'michi-abc.a.run.app' });
   assert.equal(first.status, 200);
   assert.equal(first.json.source, 'gemini');
@@ -208,8 +210,68 @@ test('AI endpoints answer through HTTP, respect the daily Gemini ceiling and acc
   const health = await invoke(handler, { method: 'GET', path: '/health' });
   assert.equal(health.json.geminiConfigured, true);
   assert.deepEqual((await invoke(handler, { method: 'GET', path: '/v1/config' })).json, { mapsApiKey: null });
-  const withKey = createHandler({ catalog, env: { GOOGLE_MAPS_BROWSER_KEY: 'browser-key' }, gemini: { enabled: false } });
+  const withKey = createHandler({ catalog, env: { GOOGLE_MAPS_BROWSER_KEY: 'browser-key', PAID_API_UNTIL: OPEN }, gemini: { enabled: false } });
   assert.deepEqual((await invoke(withKey, { method: 'GET', path: '/v1/config' })).json, { mapsApiKey: 'browser-key' });
+});
+
+test('paid window: Gemini and the Maps key stop right after PAID_API_UNTIL, and fixed text keeps working', async () => {
+  const until = '2026-11-14T23:59:59+09:00';
+  const deadline = Date.parse(until);
+  let clock = deadline;
+  const gemini = fakeGemini(() => ({ topicIds: ['craft'], reply: '細部に目が行くタイプですね。' }));
+  const handler = createHandler({ catalog, env: { PAID_API_UNTIL: until, GOOGLE_MAPS_BROWSER_KEY: 'browser-key' }, gemini, now: () => clock });
+  // The last millisecond is still inside the window.
+  assert.equal((await invoke(handler, { path: '/v1/interests', body: { text: '建物の飾り' } })).json.source, 'gemini');
+  assert.equal((await invoke(handler, { method: 'GET', path: '/v1/config' })).json.mapsApiKey, 'browser-key');
+
+  clock = deadline + 1;
+  assert.deepEqual((await invoke(handler, { path: '/v1/interests', body: { text: '建物の飾り' } })).json, { topicIds: ['craft'], reply: null, source: 'keywords' });
+  assert.equal((await invoke(handler, { path: '/v1/teaser', body: { fromSpotId: 'zuisenji', toSpotId: 'takase-ichino-funairi' } })).json.source, 'fixed');
+  const image = 'A'.repeat(200);
+  assert.equal((await invoke(handler, { path: '/v1/recognize', body: { spotId: 'ikedaya', image } })).status, 503);
+  assert.equal(gemini.calls.length, 1, 'no Gemini call after the deadline');
+  assert.deepEqual((await invoke(handler, { method: 'GET', path: '/v1/config' })).json, { mapsApiKey: null });
+  const health = (await invoke(handler, { method: 'GET', path: '/health' })).json;
+  assert.equal(health.geminiConfigured, false);
+  assert.equal(health.paidApiUntil, '2026-11-14T14:59:59.000Z');
+});
+
+test('paid window fails closed when PAID_API_UNTIL is missing, malformed or has no UTC offset', async () => {
+  for (const value of [undefined, '', 'tomorrow', '2026-11-14', '2026-11-14T23:59:59', '2026-13-40T99:00:00+09:00']) {
+    const gemini = fakeGemini(() => ({ topicIds: ['craft'], reply: 'x' }));
+    const handler = createHandler({ catalog, env: { PAID_API_UNTIL: value, GOOGLE_MAPS_BROWSER_KEY: 'k' }, gemini });
+    assert.equal((await invoke(handler, { path: '/v1/interests', body: { text: '建物の飾り' } })).json.source, 'keywords', String(value));
+    assert.equal((await invoke(handler, { method: 'GET', path: '/v1/config' })).json.mapsApiKey, null);
+    assert.equal(gemini.calls.length, 0);
+  }
+  // The Gemini client itself refuses too, so scripts are covered without the server.
+  let fetched = 0;
+  const env = { GOOGLE_CLOUD_PROJECT: 'michi-demo', GEMINI_ACCESS_TOKEN: 't' };
+  assert.equal(createGemini({ env, fetchImpl: async () => { fetched += 1; } }).enabled, false);
+  let clock = 0;
+  const expiring = createGemini({ env: { ...env, PAID_API_UNTIL: '1970-01-01T00:00:01Z' }, fetchImpl: async () => { fetched += 1; }, now: () => clock });
+  assert.equal(expiring.enabled, true);
+  clock = 1001;
+  await assert.rejects(expiring.generateJson({ system: 's', prompt: 'p', schema: {} }), { code: 'PAID_API_CLOSED' });
+  await assert.rejects(createGemini({ env: { ...env, PAID_API_UNTIL: OPEN } }).generateJson({ system: 's', prompt: 'p', schema: {}, images: [{}, {}] }), { code: 'INVALID_INPUT' });
+  assert.equal(fetched, 0);
+});
+
+test('daily Gemini ceiling defaults to 50 and env cannot raise it', async () => {
+  const { dailyLimit } = await import('./paid.mjs');
+  assert.equal(dailyLimit(undefined), 50);
+  assert.equal(dailyLimit('500'), 50);
+  assert.equal(dailyLimit('10'), 10);
+  assert.equal(dailyLimit('0'), 50);
+  const gemini = fakeGemini(() => ({ topicIds: ['craft'], reply: '細部に目が行くタイプですね。' }));
+  const handler = createHandler({ catalog, env: { PAID_API_UNTIL: OPEN, MAX_GEMINI_CALLS_PER_DAY: '9999', MAX_AI_REQUESTS_PER_MINUTE: '300' }, gemini, now: () => 0 });
+  const sources = [];
+  for (let index = 0; index < 51; index += 1) {
+    sources.push((await invoke(handler, { path: '/v1/interests', body: { text: '建物の飾り' } })).json.source);
+  }
+  assert.equal(gemini.calls.length, 50);
+  assert.equal(sources[49], 'gemini');
+  assert.equal(sources[50], 'keywords');
 });
 
 test('static handler serves the web export, falls back to index.html and never escapes its root', async () => {
