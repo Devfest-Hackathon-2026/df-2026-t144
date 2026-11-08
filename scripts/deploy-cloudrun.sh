@@ -64,7 +64,14 @@ ensure_project_role() { # <service account> <role> <what>
   if [ -z "$(gcloud projects get-iam-policy "$PROJECT_ID" --flatten='bindings[].members' \
       --filter="bindings.role=$2 AND bindings.members=\"serviceAccount:$1\"" --format='value(bindings.role)')" ]; then
     local grant="gcloud projects add-iam-policy-binding ${PROJECT_ID} --member serviceAccount:$1 --role $2 --condition None"
-    $grant >/dev/null || owner_needed "$3" "$grant"
+    # A service account created seconds ago may not be visible to IAM yet; retry before giving up.
+    local try
+    for try in 1 2 3 4 5 6; do
+      if $grant >/dev/null; then break; fi
+      [ "$try" = 6 ] && owner_needed "$3" "$grant"
+      echo "権限付与に失敗しました。サービスアカウントの反映を待って再試行します($try/5)。"
+      sleep 10
+    done
     GRANTED=1
   fi
 }

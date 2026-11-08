@@ -76,3 +76,17 @@
 - Google Mapsを使う独自アプリビルド、Cloud Runへのデプロイ。
 
 ネイティブ地図では三条大橋と駅伝碑のマーカーが近接します。拡大またはスポット一覧・関連スポットから選べます。初回の現地確認で入口位置と見せ方を調整してください。
+
+## 2026-11-09 Cloud Run 初回デプロイ(Claude Code)
+
+- プロジェクト `michi-514117`、リージョン `asia-northeast1`、サービス `michi`、リビジョン `michi-00001-zrh`。デプロイ元コミット `e1abe65` + `scripts/deploy-cloudrun.sh` の再試行修正。
+- 公開URL: https://michi-176224264627.asia-northeast1.run.app (別名 https://michi-6p6gv2mgza-an.a.run.app)
+- Macの公式gcloud 592.0.0から `bash scripts/deploy-cloudrun.sh michi-514117 asia-northeast1 2026-11-14T23:59:59+09:00` で実行。Cloud Buildは `michi-build`(roles/run.builder)、実行は `michi-run`(roles/aiplatform.user + routes-api-key の読み取りのみ)。サービスアカウント鍵は発行していない。
+- Routesキー `michi-routes` はRoutes APIだけに制限し、Secret Manager `routes-api-key` に保存。地図キー `maps-browser-key` は未作成(Webは略図)。
+- `/health`: `{"ok":true,"routesConfigured":true,"geminiConfigured":true,"paidApiUntil":"2026-11-14T14:59:59.000Z"}`
+- 実API確認(各1回):
+  - `/v1/interests`: `source: "gemini"`。`gemini-3.8-flash` / `global` でVertex AIから応答。
+  - `/v1/routes`(デモ出発地→市役所、+5分): `source: "google"` の通常ルート10分12秒・発見ルート13分11秒(見学込み)。
+- ChromeでWeb版の初期画面が公開URLから表示されることを確認。iPhone Safari・Android Chromeでの通し操作は未確認。
+- 初回実行は、作成直後のサービスアカウントがIAMに反映される前の権限付与で失敗した。スクリプトに再試行を入れて再実行し成功。
+- 未検証: Expo Goから本番APIへの接続、写真の読み取り(`/v1/recognize`)の実通信、Web地図(Googleマップ)。
