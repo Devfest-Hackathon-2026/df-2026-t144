@@ -46,6 +46,27 @@ export function getUnlockState(spot: Spot, fix: LocationFix | null | undefined, 
   return { eligible: true, reason: '近くに着きました。立ち止まって、発見しましょう。', distanceMeters: distance };
 }
 
+const CAMERA_RADIUS_METERS = 200;
+const CAMERA_FIX_AGE_MS = 120_000;
+
+/**
+ * When a photo whose text names the spot may count as a discovery.
+ * Demo: always (e.g. a printed photo of the marker at an indoor venue).
+ * Field mode: only within 200 m, so the photo replaces a weak GPS fix near
+ * the spot but never a visit.
+ */
+export function getCameraUnlockState(spot: Spot, mode: Mode, fix: LocationFix | null | undefined, now = Date.now()): { allowed: boolean; reason: string } {
+  if (mode === 'demo') return { allowed: true, reason: 'デモでは、石碑や案内板の写真を撮っても発見できます。' };
+  if (!fix || !Number.isFinite(fix.timestamp) || now - fix.timestamp > CAMERA_FIX_AGE_MS) {
+    return { allowed: false, reason: '現地モードでは、現在地を取得してから撮ってください。' };
+  }
+  const distance = distanceMeters(fix, spot.coordinate);
+  if (!Number.isFinite(distance) || distance > CAMERA_RADIUS_METERS) {
+    return { allowed: false, reason: `現地モードでは、「？」の${CAMERA_RADIUS_METERS}m以内で撮ると発見できます。` };
+  }
+  return { allowed: true, reason: 'GPSが弱い場所でも、石碑や案内板の文字が写れば発見できます。' };
+}
+
 /**
  * A reproducible demo, not a walking-directions service. Times are fixtures;
  * coordinates are straight-line overview geometry, never road navigation.

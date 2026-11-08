@@ -38,6 +38,11 @@ export function fetchConfig(): Promise<{ mapsApiKey: string | null }> {
   return configRequest;
 }
 
+export type RecognitionResult = { matched: boolean; matchedWord: string | null; readText: string | null; scene: string | null };
+/** Sends one photo (base64 JPEG) for text reading. The server forwards it to Gemini and keeps nothing. */
+export const fetchRecognition = (spotId: string, image: string, mimeType = 'image/jpeg') =>
+  postJson<RecognitionResult>('/v1/recognize', { spotId, image, mimeType }, 30_000);
+
 export type InterestResult = { topicIds: string[]; reply: string | null; source: 'gemini' | 'keywords' };
 export type TeaserResult = { text: string | null; usedFactIds: string[]; source: 'gemini' | 'fixed' };
 

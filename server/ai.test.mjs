@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { Readable, Writable } from 'node:stream';
-import { checkGeneratedText, createTeaser, draftStory, interpretInterest, matchTopicsByKeywords } from './ai.mjs';
+import { checkGeneratedText, createTeaser, draftStory, interpretInterest, matchTopicsByKeywords, recognizeSpot } from './ai.mjs';
 import { createGemini, vertexEndpoint } from './gemini.mjs';
 import { createHandler } from './index.mjs';
 import { loadCatalog } from './routes.mjs';
@@ -89,6 +89,47 @@ test('teaser keeps the next spot hidden and only uses its facts', async () => {
   }
   assert.equal((await createTeaser(input, { catalog, gemini: fakeGemini(() => { throw new Error('down'); }) })).source, 'fixed');
   await assert.rejects(createTeaser({ fromSpotId: 'ikedaya', toSpotId: 'zuisenji' }, { catalog }), { code: 'INVALID_SPOTS' });
+});
+
+test('photo recognition matches by transcribed text, never tells Gemini the answer, and rejects bad images', async () => {
+  const image = 'A'.repeat(400);
+  const seen = fakeGemini(() => ({ texts: ['池田屋騒動', '之址'], scene: '石碑' }));
+  const hit = await recognizeSpot({ spotId: 'ikedaya', image, mimeType: 'image/jpeg' }, { catalog, gemini: seen });
+  assert.deepEqual(hit, { matched: true, matchedWord: '池田屋', readText: '池田屋騒動 之址', scene: '石碑' });
+  assert.deepEqual(seen.calls[0].images, [{ mimeType: 'image/jpeg', data: image }]);
+  assert.ok(!`${seen.calls[0].system}${seen.calls[0].prompt}`.includes('池田屋'), 'the expected spot is not revealed to Gemini');
+
+  const oldForm = await recognizeSpot({ spotId: 'sanjo-giboshi', image }, { catalog, gemini: fakeGemini(() => ({ texts: ['三 條 大 橋'], scene: '橋' })) });
+  assert.equal(oldForm.matched, true);
+  const miss = await recognizeSpot({ spotId: 'zuisenji', image }, { catalog, gemini: fakeGemini(() => ({ texts: ['池田屋騒動之址'], scene: '石碑' })) });
+  assert.equal(miss.matched, false);
+  assert.equal(miss.readText, '池田屋騒動之址');
+  const empty = await recognizeSpot({ spotId: 'ikedaya', image }, { catalog, gemini: fakeGemini(() => ({ texts: [], scene: '室内の床' })) });
+  assert.deepEqual(empty, { matched: false, matchedWord: null, readText: null, scene: '室内の床' });
+
+  for (const bad of [{ spotId: 'ikedaya', image: 'short' }, { spotId: 'ikedaya', image: `${image}<script>` }, { spotId: 'ikedaya', image, mimeType: 'image/gif' }, { spotId: 'ikedaya', image: 'A'.repeat(2_800_004) }]) {
+    await assert.rejects(recognizeSpot(bad, { catalog, gemini: seen }), { code: 'INVALID_IMAGE' });
+  }
+  await assert.rejects(recognizeSpot({ spotId: 'nowhere', image }, { catalog, gemini: seen }), { code: 'INVALID_SPOT' });
+  await assert.rejects(recognizeSpot({ spotId: 'ikedaya', image }, { catalog, gemini: { enabled: false } }), { code: 'NOT_CONFIGURED' });
+  await assert.rejects(recognizeSpot({ spotId: 'ikedaya', image }, { catalog, gemini: fakeGemini(() => { throw new Error('down'); }) }), { code: 'GEMINI_UNAVAILABLE' });
+});
+
+test('recognize endpoint accepts a photo-sized body while other endpoints keep the small limit', async () => {
+  const gemini = fakeGemini(() => ({ texts: ['駅伝発祥の地'], scene: '石碑' }));
+  const handler = createHandler({ catalog, env: {}, gemini });
+  const big = { spotId: 'ekiden-monument', image: 'A'.repeat(200_000), mimeType: 'image/jpeg' };
+  const result = await invoke(handler, { path: '/v1/recognize', body: big });
+  assert.equal(result.status, 200);
+  assert.equal(result.json.matched, true);
+  assert.equal((await invoke(handler, { path: '/v1/interests', body: { text: 'x'.repeat(5000) } })).status, 413);
+});
+
+test('Gemini client sends photos as inline data next to the prompt', async () => {
+  let body;
+  const gemini = createGemini({ env: { GOOGLE_CLOUD_PROJECT: 'michi-demo', GEMINI_ACCESS_TOKEN: 't' }, fetchImpl: async (_url, options) => { body = JSON.parse(options.body); return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"texts":[],"scene":""}' }] } }] }) }; } });
+  await gemini.generateJson({ system: 's', prompt: 'p', schema: {}, images: [{ mimeType: 'image/png', data: 'QUJD' }] });
+  assert.deepEqual(body.contents[0].parts, [{ text: 'p' }, { inlineData: { mimeType: 'image/png', data: 'QUJD' } }]);
 });
 
 test('story drafts report problems instead of hiding them', async () => {

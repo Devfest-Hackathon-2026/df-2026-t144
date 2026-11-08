@@ -28,7 +28,7 @@
 | --- | --- | --- |
 | Maps JavaScript API(Google Maps Platform) | Web版の地図 | 地図上のGoogleロゴと著作権表示を消さない。ブラウザ用キーはURLとAPIで制限する |
 | Routes API(Google Maps Platform) | 徒歩経路と所要時間 | 経路を出す画面に「Google Maps」の帰属を表示する。Google由来の座標は保存しない |
-| Gemini API(Vertex AI) | 興味の言葉の分類、解説文の下書き、次のスポットへの一言 | 生成文は人が出典と照合してから公開する |
+| Gemini API(Vertex AI) | 興味の言葉の分類、解説文の下書き、次のスポットへの一言、写真に写った文字の書き起こし | 生成文は人が出典と照合してから公開する。写真は読み取りにだけ使い、保存しない |
 | Cloud Run | APIサーバーとWeb版の配信 | — |
 
 ## スポットの事実と座標
@@ -53,6 +53,8 @@
 | [Noto Sans JP](https://fonts.google.com/noto/specimen/Noto+Sans+JP) | Google Fonts | SIL Open Font License 1.1 | Web版の本文フォント |
 | [Dela Gothic One](https://fonts.google.com/specimen/Dela+Gothic+One) | Google Fonts(アプリは `@expo-google-fonts/dela-gothic-one` 0.4.1) | SIL Open Font License 1.1 | 見出し・ロゴ |
 | expo-font 58.0.11 | Expo | MIT | アプリでの見出しフォント読み込み |
+| expo-camera 58.0.14 | Expo | MIT | 「発見中…」画面のカメラ |
+| expo-image-manipulator 58.0.16 | Expo | MIT | 送信前に写真を幅1280pxへ縮小 |
 
 ## 画像・アイコン
 

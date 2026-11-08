@@ -78,6 +78,8 @@ Cloud Runではサービスアカウントのトークンで `gemini-3.8-flash`(
 | --- | --- | --- | --- |
 | `POST /v1/interests` | `{ text }`(80字以内) | `{ topicIds, reply, source }` | キーワード照合の結果(`source: "keywords"`) |
 | `POST /v1/teaser` | `{ fromSpotId, toSpotId, topicIds }` | `{ text, usedFactIds, source }` | カタログの固定文(`source: "fixed"`) |
+| `POST /v1/recognize` | `{ spotId, image(base64、約2MBまで), mimeType }` | `{ matched, matchedWord, readText, scene }` | 503 `NOT_CONFIGURED`(アプリは案内を出す) |
+| `GET /v1/config` | — | `{ mapsApiKey }` | `null`(Web版は略図) |
 | `POST /v1/routes` | 従来の項目 + 任意の `topicIds` | 従来どおり | — |
 
 Geminiの出力は `server/ai.mjs` の `checkGeneratedText` で検査し、通らなければ捨てる。スポットの解説本文は事前生成と人の照合を経たものだけを出す(`pnpm stories:draft` → `src/data/stories.json` を照合 → `pnpm stories:check`)。

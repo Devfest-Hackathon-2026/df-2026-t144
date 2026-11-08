@@ -18,6 +18,11 @@ const config: ExpoConfig = {
       isIosBackgroundLocationEnabled: false,
       isAndroidBackgroundLocationEnabled: false,
     }],
+    ['expo-camera', {
+      cameraPermission: '「？」の石碑や案内板を撮って、書かれた文字をGeminiで読み取るためにカメラを使います。写真は保存しません。',
+      microphonePermission: false,
+      recordAudioAndroid: false,
+    }],
     ...(iosGoogleMapsApiKey || androidGoogleMapsApiKey ? [
       ['react-native-maps', { iosGoogleMapsApiKey, androidGoogleMapsApiKey }] as [string, Record<string, string | undefined>],
     ] : []),

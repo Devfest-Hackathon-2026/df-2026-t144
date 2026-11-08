@@ -4,7 +4,7 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import Svg, { Circle, G, Path, Rect } from 'react-native-svg';
 import { colors as c, radius, text as t } from './theme';
 
-export type IconName = 'map' | 'book' | 'chevron' | 'pin' | 'close' | 'check' | 'share' | 'bookmark' | 'sparkle' | 'calendar' | 'back' | 'user' | 'walk';
+export type IconName = 'map' | 'book' | 'chevron' | 'pin' | 'close' | 'check' | 'share' | 'bookmark' | 'sparkle' | 'calendar' | 'back' | 'user' | 'walk' | 'camera';
 
 export function Icon({ name, color = c.white, size = 24 }: { name: IconName; color?: string; size?: number }) {
   return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -19,7 +19,8 @@ export function Icon({ name, color = c.white, size = 24 }: { name: IconName; col
     {name === 'bookmark' && <Path d="M 6 3 H 18 V 21 L 12 16 L 6 21 Z" />}
     {name === 'sparkle' && <Path d="M 12 2 L 14 10 L 22 12 L 14 14 L 12 22 L 10 14 L 2 12 L 10 10 Z" fill={color} />}
     {name === 'calendar' && <><Rect x={3} y={5} width={18} height={16} rx={2} /><Path d="M 3 10 H 21 M 8 3 V 7 M 16 3 V 7" /></>}
-    {name === 'user' && <><Circle cx={12} cy={8} r={4} /><Path d="M 4 21 C 4 16 8 14 12 14 C 16 14 20 16 20 21" /></>}
+    {name === 'camera' && <><Path d="M 3 8 H 7 L 9 5 H 15 L 17 8 H 21 V 19 H 3 Z" /><Circle cx={12} cy={13} r={3.5} /></>}
+    {name === 'user' &&<><Circle cx={12} cy={8} r={4} /><Path d="M 4 21 C 4 16 8 14 12 14 C 16 14 20 16 20 21" /></>}
     {name === 'walk' && <><Circle cx={13} cy={4} r={2} /><Path d="M 9 21 L 11 15 L 14 17 V 21 M 11 15 L 12 9 L 16 12 L 19 12 M 12 9 L 8 11 L 6 14" /></>}
   </Svg>;
 }

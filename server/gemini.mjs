@@ -56,8 +56,11 @@ export function createGemini({ env = process.env, fetchImpl = fetch, now = Date.
     return project;
   }
 
-  /** Returns the parsed JSON object that Gemini produced under `schema`. Callers must still validate it. */
-  async function generateJson({ system, prompt, schema, temperature = 0.3, timeoutMs = 12_000 }) {
+  /**
+   * Returns the parsed JSON object that Gemini produced under `schema`. Callers must still validate it.
+   * `images` are sent inline ({ mimeType, data: base64 }) and are not stored anywhere.
+   */
+  async function generateJson({ system, prompt, schema, temperature = 0.3, timeoutMs = 12_000, images = [] }) {
     if (!enabled) throw new GeminiError('NOT_CONFIGURED', 'Geminiが未設定です。');
     const url = vertexEndpoint({ project: await projectId(), location, model });
     let response;
@@ -68,7 +71,7 @@ export function createGemini({ env = process.env, fetchImpl = fetch, now = Date.
         headers: { Authorization: `Bearer ${await accessToken()}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: system }] },
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          contents: [{ role: 'user', parts: [{ text: prompt }, ...images.map((image) => ({ inlineData: { mimeType: image.mimeType, data: image.data } }))] }],
           generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature },
         }),
         signal: AbortSignal.timeout(timeoutMs),

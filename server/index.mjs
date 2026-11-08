@@ -2,7 +2,7 @@ import http from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { computeRoutes, loadCatalog, RouteError } from './routes.mjs';
 import { createGemini } from './gemini.mjs';
-import { createTeaser, interpretInterest } from './ai.mjs';
+import { createTeaser, interpretInterest, MAX_IMAGE_BASE64, recognizeSpot } from './ai.mjs';
 import { createStaticHandler } from './static.mjs';
 
 function positiveInteger(value, fallback, max) {
@@ -32,7 +32,7 @@ function minuteWindow(now, max) {
   };
 }
 
-async function readJson(request) {
+async function readJson(request, maxBytes = 4096) {
   if (!/^application\/json(?:\s*;|$)/i.test(request.headers['content-type'] ?? '')) {
     throw new RouteError(415, 'JSON_REQUIRED', 'JSON形式で送信してください。');
   }
@@ -40,7 +40,7 @@ async function readJson(request) {
   const chunks = [];
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > 4096) throw new RouteError(413, 'BODY_TOO_LARGE', 'リクエストが大きすぎます。');
+    if (size > maxBytes) throw new RouteError(413, 'BODY_TOO_LARGE', 'リクエストが大きすぎます。');
     chunks.push(chunk);
   }
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
@@ -67,6 +67,8 @@ export function createHandler({ catalog, env = process.env, fetchImpl = fetch, n
     '/v1/routes': { pool: 'routes', maxInFlight: 2, minute: routeMinute, run: (input) => computeRoutes(input, { catalog, apiKey: env.GOOGLE_ROUTES_API_KEY, fetchImpl, beforeGoogleCall }) },
     '/v1/interests': { pool: 'ai', maxInFlight: 4, minute: aiMinute, run: (input) => interpretInterest(input, { catalog, gemini: countedGemini }) },
     '/v1/teaser': { pool: 'ai', maxInFlight: 4, minute: aiMinute, run: (input) => createTeaser(input, { catalog, gemini: countedGemini }) },
+    // Photos are the only large bodies; they go to Gemini and are never written anywhere.
+    '/v1/recognize': { pool: 'ai', maxInFlight: 4, minute: aiMinute, maxBytes: MAX_IMAGE_BASE64 + 1024, run: (input) => recognizeSpot(input, { catalog, gemini: countedGemini }) },
   };
 
   return async (request, response) => {
@@ -122,7 +124,7 @@ export function createHandler({ catalog, env = process.env, fetchImpl = fetch, n
     }
     inFlight[endpoint.pool] += 1;
     try {
-      send(200, await endpoint.run(await readJson(request)));
+      send(200, await endpoint.run(await readJson(request, endpoint.maxBytes)));
     } catch (error) {
       // Do not log keys, precise user location, Google payloads, or raw errors.
       send(error instanceof RouteError ? error.status : 500, {
@@ -141,7 +143,7 @@ export async function startServer() {
   const serveStatic = await createStaticHandler(process.env.WEB_DIST_DIR);
   const handler = createHandler({ catalog, serveStatic });
   const server = http.createServer(handler);
-  server.requestTimeout = 15_000;
+  server.requestTimeout = 30_000; // photo upload + Gemini reading
   server.headersTimeout = 10_000;
   server.listen(port, host, () => console.log(`MICHI server: http://${host}:${port}${serveStatic ? ' (web + api)' : ' (api only)'}`));
   return server;

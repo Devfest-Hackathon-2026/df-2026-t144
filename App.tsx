@@ -1,17 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Linking, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Animated, Linking, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFonts } from 'expo-font';
 import { DelaGothicOne_400Regular } from '@expo-google-fonts/dela-gothic-one';
 import Art from './src/components/Art';
+import CameraScan from './src/components/CameraScan';
 import DiscoveryCard from './src/components/DiscoveryCard';
 import DiscoveryMap from './src/components/Map';
 import InterestPicker from './src/components/InterestPicker';
 import RelatedTeaser from './src/components/RelatedTeaser';
 import { SPOTS, DESTINATIONS, DEMO_ORIGIN, STORIES, TOPICS } from './src/data/spots';
-import { addDiscovery, createDemoRoutes, distanceMeters, getUnlockState, sanitizeDiscoveries } from './src/domain';
+import { addDiscovery, createDemoRoutes, distanceMeters, getCameraUnlockState, getUnlockState, sanitizeDiscoveries } from './src/domain';
 import { pickStory, rankSpots, topicScore } from './src/interests';
 import { useLocation } from './src/useLocation';
 import { fetchRoutes } from './src/routesClient';
@@ -104,11 +105,15 @@ function Michi() {
     } catch (error) { if (request === routeRequest.current) setRouteError(error instanceof Error ? error.message : '経路の取得に失敗しました。'); }
     finally { if (request === routeRequest.current) setRoutesLoading(false); }
   }
-  async function discover(spot: Spot) {
+  /** viaCamera: the server found the spot's marker words in a photo; the camera rule replaces the GPS radius. */
+  async function discover(spot: Spot, viaCamera = false) {
     if (saving || !loaded || storageError) return;
     // Recheck on press: never trust an earlier enabled button after a stale GPS fix.
     const pressFix = mode === 'demo' ? { ...demoPosition, accuracy: 0, timestamp: Date.now() } : location.fix;
-    if (!getUnlockState(spot, pressFix).eligible) { setNotice('現在地をもう一度確認してください。'); return; }
+    if (viaCamera) {
+      const rule = getCameraUnlockState(spot, mode, pressFix);
+      if (!rule.allowed) { setNotice(rule.reason); return; }
+    } else if (!getUnlockState(spot, pressFix).eligible) { setNotice('現在地をもう一度確認してください。'); return; }
     setSaving(true);
     const updated = addDiscovery(discoveries, spot.id, mode);
     try { await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); setDiscoveries(updated); }
@@ -347,13 +352,13 @@ function Michi() {
         {notice && <View style={s.modalNotice}><Text style={[t.std16N170, { color: c.white }]}>{notice}</Text></View>}
         {selected && (cardView && discoveredIds.includes(selected.id)
           ? <CardReveal spot={selected} discovery={modeDiscoveries.find(d => d.spotId === selected.id)!} onShare={() => void share(selected)} onStory={() => setCardView(false)} onBook={() => { closeSpot(); setTab('book'); }} onClose={closeSpot} />
-          : <SpotDetail spot={selected} mode={mode} discovered={discoveredIds.includes(selected.id)} fix={currentFix} saving={saving} loaded={loaded && !storageError} onClose={closeSpot} onDiscover={() => void discover(selected)} onMove={() => { setDemoPosition(selected.coordinate); setNow(Date.now()); }} onRelated={id => openSpot(id)} onSource={url => void openSource(url)} discoveredIds={discoveredIds} onCard={() => setCardView(true)} locationHelp={locationHelp} topicIds={topicIds} />)}
+          : <SpotDetail spot={selected} mode={mode} discovered={discoveredIds.includes(selected.id)} fix={currentFix} saving={saving} loaded={loaded && !storageError} onClose={closeSpot} onDiscover={() => void discover(selected)} onCameraMatch={() => void discover(selected, true)} camera={getCameraUnlockState(selected, mode, currentFix)} onMove={() => { setDemoPosition(selected.coordinate); setNow(Date.now()); }} onRelated={id => openSpot(id)} onSource={url => void openSource(url)} discoveredIds={discoveredIds} onCard={() => setCardView(true)} locationHelp={locationHelp} topicIds={topicIds} />)}
       </View></View>
     </Modal>
   </View></View>;
 }
 
-function SpotDetail({ spot, mode, discovered, fix, saving, loaded, onClose, onDiscover, onMove, onRelated, onSource, discoveredIds, onCard, locationHelp, topicIds }: { spot: Spot; mode: Mode; discovered: boolean; fix: LocationFix | null; saving: boolean; loaded: boolean; onClose: () => void; onDiscover: () => void; onMove: () => void; onRelated: (id: string) => void; onSource: (url: string) => void; discoveredIds: string[]; onCard: () => void; locationHelp: React.ReactNode; topicIds: string[] }) {
+function SpotDetail({ spot, mode, discovered, fix, saving, loaded, onClose, onDiscover, onCameraMatch, camera, onMove, onRelated, onSource, discoveredIds, onCard, locationHelp, topicIds }: { spot: Spot; mode: Mode; discovered: boolean; fix: LocationFix | null; saving: boolean; loaded: boolean; onClose: () => void; onDiscover: () => void; onCameraMatch: () => void; camera: { allowed: boolean; reason: string }; onMove: () => void; onRelated: (id: string) => void; onSource: (url: string) => void; discoveredIds: string[]; onCard: () => void; locationHelp: React.ReactNode; topicIds: string[] }) {
   const unlock = getUnlockState(spot, fix, Date.now());
   const story = pickStory(spot, topicIds, STORIES);
   const storyTopic = story.variant ? TOPICS.find(topic => topic.id === story.variant?.topicId)?.label : null;
@@ -366,11 +371,12 @@ function SpotDetail({ spot, mode, discovered, fix, saving, loaded, onClose, onDi
   if (!discovered) return <>
     {header}
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.detailContent}>
-      <Finder category={spot.category} eligible={unlock.eligible} />
-      <View style={s.callout}>
-        <Text style={[t.display18, { color: c.white }]}>{unlock.eligible ? '何か見つかった…！' : unlock.distanceMeters === null ? '現在地を待っています' : `「？」まで約${Math.round(unlock.distanceMeters)}m`}</Text>
-        <Text style={[t.std16N170, { color: c.white }]}>{unlock.eligible ? 'この場所の物語を解き明かそう。' : unlock.reason}</Text>
-      </View>
+      <CameraScan spot={spot} eligible={unlock.eligible} camera={camera} onMatched={onCameraMatch}>
+        <View style={s.callout}>
+          <Text style={[t.display18, { color: c.white }]}>{unlock.eligible ? '何か見つかった…！' : unlock.distanceMeters === null ? '現在地を待っています' : `「？」まで約${Math.round(unlock.distanceMeters)}m`}</Text>
+          <Text style={[t.std16N170, { color: c.white }]}>{unlock.eligible ? 'この場所の物語を解き明かそう。' : unlock.reason}</Text>
+        </View>
+      </CameraScan>
       <View style={s.hintBox}><Text style={[t.note14B150, { color: c.redText }]}>ヒント</Text><Text style={[t.std18B160, { color: c.white }]}>{spot.hint}</Text></View>
       {locationHelp}
       {mode === 'demo' && !unlock.eligible && <View style={{ gap: 8 }}><Button label="デモでこの場所へ移動" variant="light" icon="pin" onPress={onMove} /><Text style={[t.note14N150, { color: c.muted, textAlign: 'center' }]}>実際には移動しません。体験用に現在地を動かします。</Text></View>}
@@ -419,37 +425,6 @@ function SpotDetail({ spot, mode, discovered, fix, saving, loaded, onClose, onDi
 
 const nativeDriver = Platform.OS !== 'web';
 
-/** A 0→1 loop for decorative motion. Stays at 0 when the user asked for reduced motion. */
-function useLoop(duration: number) {
-  const value = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    let loop: Animated.CompositeAnimation | null = null;
-    let alive = true;
-    void AccessibilityInfo.isReduceMotionEnabled().catch(() => false).then((reduce) => {
-      if (!alive || reduce) return;
-      loop = Animated.loop(Animated.timing(value, { toValue: 1, duration, easing: Easing.inOut(Easing.quad), useNativeDriver: nativeDriver }));
-      loop.start();
-    });
-    return () => { alive = false; loop?.stop(); };
-  }, [value, duration]);
-  return value;
-}
-
-/** "発見中…" viewfinder: the scene behind a dark veil, corner brackets, a scan line and a pulsing "?". */
-function Finder({ category, eligible }: { category: string; eligible: boolean }) {
-  const scan = useLoop(2400);
-  const pulse = useLoop(1100);
-  const scale = pulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, eligible ? 1.14 : 1.05, 1] });
-  const scanY = scan.interpolate({ inputRange: [0, 1], outputRange: [36, 244] });
-  return <View style={s.finder}>
-    <View style={[StyleSheet.absoluteFill, { opacity: .35 }]}><Art category={category} height={280} /></View>
-    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(11, 22, 49, 0.45)' }]} />
-    {[s.cornerTL, s.cornerTR, s.cornerBL, s.cornerBR].map((corner, index) => <View key={index} style={[s.corner, corner]} />)}
-    {!eligible && <Animated.View pointerEvents="none" style={[s.scanLine, { transform: [{ translateY: scanY }] }]} />}
-    <Animated.View style={{ zIndex: 2, transform: [{ scale }] }}><QPin size={eligible ? 84 : 64} /></Animated.View>
-  </View>;
-}
-
 function CardReveal({ spot, discovery, onShare, onStory, onBook, onClose }: { spot: Spot; discovery: Discovery; onShare: () => void; onStory: () => void; onBook: () => void; onClose: () => void }) {
   const pop = useRef(new Animated.Value(0)).current;
   useEffect(() => { Animated.spring(pop, { toValue: 1, friction: 6, tension: 60, useNativeDriver: nativeDriver }).start(); }, [pop]);
@@ -491,7 +466,6 @@ const s = StyleSheet.create({
   statRow: { flexDirection: 'row', gap: 8 },
   stat: { flex: 1, backgroundColor: c.navyCard, borderWidth: 1, borderColor: c.line, borderTopWidth: 3, borderTopColor: c.red, borderRadius: radius.s, padding: 10 },
   aiRow: { flexDirection: 'row', gap: 10 },
-  scanLine: { position: 'absolute', top: 0, left: 56, right: 56, height: 2, backgroundColor: c.redText, opacity: 0.85, zIndex: 1 },
   tabActive: { backgroundColor: c.red, borderColor: c.red },
   scroll: { flex: 1 }, scrollContent: { paddingBottom: 32 },
   hero: { paddingBottom: 8, gap: 6 },
@@ -531,12 +505,6 @@ const s = StyleSheet.create({
   close: { width: 48, height: 48, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: c.navyCard },
   modalNotice: { backgroundColor: c.red, padding: 12, borderRadius: radius.m },
   detailContent: { paddingBottom: 24, gap: 16 },
-  finder: { height: 280, borderRadius: radius.m, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: c.navyCard },
-  corner: { position: 'absolute', width: 36, height: 36, borderColor: c.white },
-  cornerTL: { top: 28, left: 56, borderTopWidth: 4, borderLeftWidth: 4 },
-  cornerTR: { top: 28, right: 56, borderTopWidth: 4, borderRightWidth: 4 },
-  cornerBL: { bottom: 28, left: 56, borderBottomWidth: 4, borderLeftWidth: 4 },
-  cornerBR: { bottom: 28, right: 56, borderBottomWidth: 4, borderRightWidth: 4 },
   callout: { marginTop: -44, marginHorizontal: 8, backgroundColor: '#050B1C', borderLeftWidth: 6, borderLeftColor: c.red, padding: 12, transform: [{ skewX: '-6deg' }], gap: 2 },
   hintBox: { borderLeftWidth: 4, borderLeftColor: c.red, paddingLeft: 12, gap: 4 },
   shutterWrap: { alignItems: 'center', gap: 6, marginTop: 4 },
