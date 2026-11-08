@@ -121,6 +121,21 @@ function Michi() {
     try { await Linking.openURL(url); } catch { setNotice('出典を開けませんでした。ネット接続を確認してください。'); }
   }
   const changeMode = (value: Mode) => { if (saving) return; setMode(value); setDemoPosition(DEMO_ORIGIN); };
+  function startFirstDiscovery() {
+    const firstId = demoRoutes.find(option => option.kind === 'discovery')?.spotIds[0];
+    if (!firstId) return;
+    setTab('walk'); setSelectedKind('discovery'); setWalking(true);
+    setDemoPosition(DEMO_ORIGIN); setSelectedId(firstId);
+  }
+  async function openLocationSettings() {
+    try { await Linking.openSettings(); }
+    catch { setNotice('設定を開けませんでした。端末の設定から位置情報の許可を確認してください。'); }
+  }
+  const locationHelp = mode === 'gps' && location.error ? <View style={s.locationHelp}>
+    <Text style={s.sectionLabel}>現在地が使えなくても、大丈夫。</Text><Text style={s.body}>{location.error}</Text>
+    {location.needsSettings && (Platform.OS === 'web' ? <Text style={s.body}>ブラウザのサイト設定から位置情報の許可を変更できます。</Text> : <Button label="位置情報の設定を開く" secondary onPress={() => void openLocationSettings()} />)}
+    <Button label="位置情報を使わずデモで試す" secondary onPress={() => changeMode('demo')} />
+  </View> : null;
 
   return <View style={s.desktop}><View style={[s.app, width > 600 && s.desktopApp]}>
     <StatusBar style="dark" />
@@ -133,8 +148,14 @@ function Michi() {
         <Pressable accessibilityRole="button" accessibilityLabel="目的地を選ぶ" onPress={() => setDestinationPicker(true)} style={s.destination}><View style={s.destinationIcon}><Icon name="pin" size={21} /></View><View style={{ flex: 1 }}><Text style={s.smallLabel}>{mode === 'demo' ? '三条京阪から' : '現在地から'}、ここまで</Text><Text style={s.destinationName}>{destination.name}</Text></View><Text style={s.chevron}>⌄</Text></Pressable>
         <View style={s.mapFrame}><DiscoveryMap spots={visibleSpots} discoveredIds={discoveredIds} route={route} destination={destination} position={currentFix} selectedId={selectedId ?? undefined} onSelect={setSelectedId} /></View>
         <View style={s.belowMap}>
-          {mode === 'demo' ? <Text style={s.contextNote}>DEMO · 位置と所要時間は体験用の仮データです</Text> : <View style={s.gpsRow}><Text style={s.contextNote}>{location.loading ? '現在地を取得しています…' : location.fix ? `GPS精度 ±${Math.round(location.fix.accuracy ?? 0)}m · 利用中のみ取得` : '現在地を待っています'}</Text><Pressable accessibilityRole="button" onPress={() => void location.retry()}><Text style={s.textLink}>再取得</Text></Pressable></View>}
-          {location.error && mode === 'gps' && <Text style={s.error}>{location.error}</Text>}
+          {mode === 'demo' ? <Text style={s.contextNote}>DEMO · 位置と所要時間は体験用の仮データです</Text> : <View style={s.gpsRow}><Text style={s.contextNote}>{location.loading ? '現在地を取得しています…' : location.fix ? `${location.fix.accuracy === null ? 'GPS精度不明' : `GPS精度 ±${Math.round(location.fix.accuracy)}m`} · 利用中のみ取得` : location.error ? '現在地を利用できません' : '現在地を待っています'}</Text><Pressable accessibilityRole="button" onPress={() => void location.retry()}><Text style={s.textLink}>再取得</Text></Pressable></View>}
+          {locationHelp}
+          {mode === 'demo' && loaded && modeDiscoveries.length === 0 && !walking && <View style={s.firstGuide}>
+            <Text style={s.eyebrow}>YOUR FIRST DISCOVERY</Text><Text style={s.setupTitle}>まずは、1つ見つけてみよう。</Text>
+            <View style={s.guideSteps}>{['「？」を開く', 'デモで近づく', '発見して図鑑へ'].map((label, index) => <View key={label} style={s.guideStep}><Text style={s.guideNumber}>0{index + 1}</Text><Text style={s.guideLabel}>{label}</Text></View>)}</View>
+            <Button label="最初の「？」を体験する" onPress={startFirstDiscovery} disabled={Boolean(storageError)} />
+            <Text style={s.guideNote}>今いる場所から、移動せずに試せます。</Text>
+          </View>}
           {!walking ? <>
             <View style={s.budgetRow}><Text style={s.sectionLabel}>寄り道できる時間</Text><View style={s.budgetControls}>{([5, 10] as Budget[]).map(value => <Pressable key={value} accessibilityRole="button" accessibilityLabel={`追加${value}分`} accessibilityState={{ selected: budget === value }} onPress={() => setBudget(value)} style={[s.budgetChip, budget === value && s.budgetSelected]}><Text style={[s.budgetText, budget === value && { color: c.white }]}>＋{value}分</Text></Pressable>)}</View></View>
             {routes.length > 0 ? <><View style={s.routeCards}>{routes.map(option => <Pressable key={option.id} accessibilityRole="button" accessibilityLabel={`${option.label} ${minute(option.totalSeconds)}分`} accessibilityState={{ selected: route?.id === option.id }} onPress={() => setSelectedKind(option.kind)} style={[s.routeCard, route?.id === option.id && s.routeSelected]}><View style={s.routeTop}><Text style={s.routeLabel}>{option.label}</Text><View style={[s.radio, route?.id === option.id && s.radioSelected]}>{route?.id === option.id && <View style={s.radioInner} />}</View></View><View style={s.timeRow}><Text style={s.routeMinutes}>{minute(option.totalSeconds)}</Text><Text style={s.minutesUnit}>分</Text>{option.kind === 'discovery' && <Text style={s.extra}>＋{minute(option.extraSeconds)}分</Text>}</View><Text style={s.routeSub}>{option.kind === 'discovery' ? `${option.spotIds.length}つの発見 · 見学${minute(option.visitSeconds)}分込み` : '寄り道せず、目的地へ'}</Text></Pressable>)}</View>
@@ -160,7 +181,7 @@ function Michi() {
         <View style={s.collectionHero}><View><Text style={s.collectionNumber}>{String(modeDiscoveries.length).padStart(2, '0')}<Text style={s.collectionTotal}> / 05</Text></Text><Text style={s.category}>{mode === 'demo' ? 'デモで見つけた、街の物語' : '現地で見つけた、街の物語'}</Text></View><View style={s.stamp}><Text style={s.stampSmall}>MICHI?</Text><Text style={s.stampBig}>発見</Text><Text style={s.stampSmall}>KYOTO</Text></View></View>
         <Text style={s.contextNote}>{mode === 'demo' ? 'デモの記録です。現地の発見とは分けて保存されます。' : 'この端末に保存した現地の記録です。'}</Text>
         {!loaded && <ActivityIndicator color={c.ink} />}
-        {modeDiscoveries.length === 0 && <View style={s.emptyCard}><Text style={s.setupTitle}>最初の「？」が、待っています。</Text><Text style={s.body}>ルートを選んで、気になる場所へ。発見した物語がここに集まります。</Text><Button label="道を探しにいく" onPress={() => setTab('walk')} /></View>}
+        {loaded && modeDiscoveries.length === 0 && <View style={s.emptyCard}><Text style={s.setupTitle}>最初の「？」が、待っています。</Text><Text style={s.body}>{mode === 'demo' ? 'デモで近づき、物語を開いてみましょう。最初の発見から、この図鑑に残ります。' : '近くの「？」に歩いて近づくと、物語を発見できます。デモの記録はここには入りません。'}</Text><Button label={mode === 'demo' ? '最初の「？」を体験する' : '道を探しにいく'} onPress={mode === 'demo' ? startFirstDiscovery : () => setTab('walk')} disabled={Boolean(storageError)} /></View>}
         {SPOTS.map((spot, index) => {
           const discovery = modeDiscoveries.find(d => d.spotId === spot.id);
           return <Pressable key={spot.id} accessibilityRole="button" accessibilityLabel={`${discovery ? spot.name : `未発見の図鑑${index + 1}`}を開く`} onPress={() => setSelectedId(spot.id)} style={[s.collectionCard, !discovery && s.lockedCard]}>
@@ -181,13 +202,13 @@ function Michi() {
     <Modal visible={Boolean(selected)} animationType="slide" transparent onRequestClose={() => { if (!saving) setSelectedId(null); }}>
       <View style={s.scrim}><View style={[s.sheet, s.detailSheet]}><View style={s.sheetHandle} />
         {notice && <View style={s.modalNotice}><Text style={s.toastText}>{notice}</Text></View>}
-        {selected && <SpotDetail spot={selected} mode={mode} discovered={discoveredIds.includes(selected.id)} fix={currentFix} now={now} saving={saving} loaded={loaded && !storageError} onClose={() => { if (!saving) setSelectedId(null); }} onDiscover={() => void discover(selected)} onMove={() => { setDemoPosition(selected.coordinate); setNow(Date.now()); }} onRelated={setSelectedId} onSource={url => void openSource(url)} discoveredIds={discoveredIds} />}
+        {selected && <SpotDetail spot={selected} mode={mode} discovered={discoveredIds.includes(selected.id)} fix={currentFix} now={now} saving={saving} loaded={loaded && !storageError} onClose={() => { if (!saving) setSelectedId(null); }} onDiscover={() => void discover(selected)} onMove={() => { setDemoPosition(selected.coordinate); setNow(Date.now()); }} onRelated={setSelectedId} onSource={url => void openSource(url)} discoveredIds={discoveredIds} onOpenBook={() => { setSelectedId(null); setTab('book'); }} locationHelp={locationHelp} />}
       </View></View>
     </Modal>
   </View></View>;
 }
 
-function SpotDetail({ spot, mode, discovered, fix, now, saving, loaded, onClose, onDiscover, onMove, onRelated, onSource, discoveredIds }: { spot: Spot; mode: Mode; discovered: boolean; fix: LocationFix | null; now: number; saving: boolean; loaded: boolean; onClose: () => void; onDiscover: () => void; onMove: () => void; onRelated: (id: string) => void; onSource: (url: string) => void; discoveredIds: string[] }) {
+function SpotDetail({ spot, mode, discovered, fix, now, saving, loaded, onClose, onDiscover, onMove, onRelated, onSource, discoveredIds, onOpenBook, locationHelp }: { spot: Spot; mode: Mode; discovered: boolean; fix: LocationFix | null; now: number; saving: boolean; loaded: boolean; onClose: () => void; onDiscover: () => void; onMove: () => void; onRelated: (id: string) => void; onSource: (url: string) => void; discoveredIds: string[]; onOpenBook: () => void; locationHelp: React.ReactNode }) {
   const unlock = getUnlockState(spot, fix, Date.now());
   return <>
     <View style={s.sheetHeader}><Text style={s.eyebrow}>{discovered ? 'DISCOVERY FOUND' : 'A STORY IS HIDING HERE'}</Text><Pressable accessibilityRole="button" accessibilityLabel="スポットを閉じる" onPress={onClose} disabled={saving} style={s.close}><Icon name="close" /></Pressable></View>
@@ -196,10 +217,11 @@ function SpotDetail({ spot, mode, discovered, fix, now, saving, loaded, onClose,
       {discovered ? <><Text style={s.detailTitle}>{spot.name}</Text><Artwork category={spot.category} /><Text style={s.story}>{spot.story}</Text><View style={s.lookCard}><Text style={s.sectionLabel}>ここを、見てみよう</Text><Text style={s.body}>{spot.lookFor}</Text></View>
         <Text style={[s.sectionLabel, { marginTop: 24 }]}>この話のつづき</Text>{spot.relatedSpotIds.map(id => { const related = SPOTS.find(s => s.id === id)!; return <Pressable key={id} accessibilityRole="button" accessibilityLabel={`関連する${discoveredIds.includes(id) ? related.name : '未発見スポット'}を開く`} onPress={() => onRelated(id)} style={s.related}><View style={s.smallQuestion}><Text style={s.smallQuestionText}>{discoveredIds.includes(id) ? '✓' : '?'}</Text></View><View style={{ flex: 1 }}><Text style={s.category}>{related.category}</Text><Text style={s.hintText}>{discoveredIds.includes(id) ? related.name : related.hint}</Text></View><Icon name="arrow" size={18} /></Pressable>; })}
         <Text style={[s.sectionLabel, { marginTop: 24 }]}>物語の出典</Text>{spot.sources.map(source => <Pressable key={source.url} accessibilityRole="link" onPress={() => onSource(source.url)} style={s.sourceLink}><Text style={[s.textLink, { flex: 1 }]}>{source.title}</Text><Text style={s.textLink}>↗</Text></Pressable>)}<Text style={s.coordinateNote}>{spot.coordinateNote}</Text><View style={s.savedBadge}><Icon name="check" size={18} /><Text style={s.savedText}>図鑑に記録しました{mode === 'demo' ? '（デモ）' : ''}</Text></View>
-      </> : <><View style={s.mysteryArt}><View style={s.mysteryRing}><Text style={s.mysteryQuestion}>?</Text></View><Text style={s.mysteryLabel}>まだ知らない、この街の話。</Text></View><Text style={s.detailHint}>{spot.hint}</Text><View style={s.distanceRow}><Icon name="pin" size={18} /><Text style={s.distanceText}>{unlock.distanceMeters === null ? '現在地を待っています' : unlock.eligible ? '発見できる場所に着きました' : `発見スポットまで 約${Math.round(unlock.distanceMeters)}m`}</Text></View><Text style={s.body}>{unlock.reason}</Text>
+      </> : <><View style={s.mysteryArt}><View style={s.mysteryRing}><Text style={s.mysteryQuestion}>?</Text></View><Text style={s.mysteryLabel}>まだ知らない、この街の話。</Text></View><Text style={s.detailHint}>{spot.hint}</Text><View style={s.distanceRow}><Icon name="pin" size={18} /><Text style={s.distanceText}>{unlock.distanceMeters === null ? '現在地を待っています' : unlock.eligible ? '発見できる場所に着きました' : `発見スポットまで 約${Math.round(unlock.distanceMeters)}m`}</Text></View><Text style={s.body}>{unlock.reason}</Text>{locationHelp}
         {mode === 'demo' && !unlock.eligible && <View style={{ marginTop: 18 }}><Button label="デモでここへ移動" secondary onPress={onMove} /><Text style={s.centerNote}>実際の移動や現地訪問にはなりません。</Text></View>}
         <View style={{ marginTop: 18 }}><Button label="立ち止まって、発見する" onPress={onDiscover} disabled={!unlock.eligible || !loaded} loading={saving} /></View><Text style={s.centerNote}>出典のある短い物語が開き、図鑑に残ります。</Text>
       </>}
+      {discovered && <View style={{ marginBottom: 12 }}><Button label="発見図鑑で見る" onPress={onOpenBook} /></View>}
       <Button label={discovered ? '街歩きに戻る' : '地図に戻る'} secondary onPress={onClose} disabled={saving} />
       <SafeAreaView edges={['bottom']} />
     </ScrollView>
@@ -207,6 +229,9 @@ function SpotDetail({ spot, mode, discovered, fix, now, saving, loaded, onClose,
 }
 
 const s = StyleSheet.create({
+  firstGuide: { backgroundColor: '#EDF2DC', borderWidth: 1, borderColor: '#D8E3BE', borderRadius: 18, padding: 18, marginTop: 18, gap: 10 },
+  guideSteps: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 5, gap: 8 }, guideStep: { flex: 1, gap: 5 }, guideNumber: { color: '#7D9465', fontSize: 18, fontWeight: '700' }, guideLabel: { color: c.ink, fontSize: 10, lineHeight: 17, fontWeight: '600' }, guideNote: { color: c.muted, fontSize: 10, textAlign: 'center', lineHeight: 17 },
+  locationHelp: { backgroundColor: '#FAEFE5', borderRadius: 16, padding: 16, gap: 12, marginVertical: 12 },
   desktop: { flex: 1, backgroundColor: '#DFE5D9', alignItems: 'center' }, app: { width: '100%', maxWidth: 480, flex: 1, backgroundColor: c.paper, overflow: 'hidden' }, desktopApp: { marginVertical: 22, borderRadius: 30, borderWidth: 1, borderColor: '#CCD4C6', boxShadow: '0px 20px 80px #193C3415' }, safe: { flex: 1 }, modalNotice: { backgroundColor: c.ink, padding: 12, borderRadius: 12, marginBottom: 10 },
   header: { paddingHorizontal: 24, paddingTop: 15, paddingBottom: 12 }, brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, brand: { color: c.ink, fontWeight: '900', fontSize: 32, letterSpacing: -1.5 }, brandCaption: { color: c.muted, fontSize: 10, marginTop: 3, letterSpacing: 1.5 }, edition: { borderWidth: 1, borderColor: c.line, borderRadius: 20, paddingVertical: 7, paddingHorizontal: 11 }, editionText: { color: c.ink, fontSize: 9, fontWeight: '700', letterSpacing: 1.2 },
   modeRow: { marginHorizontal: 24, marginBottom: 4, flexDirection: 'row', backgroundColor: '#ECEFE5', padding: 4, borderRadius: 12 }, modeButton: { flex: 1, minHeight: 35, borderRadius: 9, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7 }, modeActive: { backgroundColor: c.white }, modeDot: { width: 5, height: 5, borderRadius: 3 }, modeText: { fontSize: 12, color: c.muted, fontWeight: '600' }, modeTextActive: { color: c.ink },
