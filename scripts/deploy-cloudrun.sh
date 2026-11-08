@@ -116,10 +116,10 @@ if [ "$GRANTED" = 1 ]; then echo "付与した権限の反映を60秒待ちま�
 
 # max-instances=1 keeps the in-process rate limits meaningful and caps cost.
 gcloud run deploy "$SERVICE" --source . --region "$REGION" \
-  --service-account "$SA" "${BUILD_ARGS[@]}" "${ACCESS_ARGS[@]}" \
+  --service-account "$SA" ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"} ${ACCESS_ARGS[@]+"${ACCESS_ARGS[@]}"} \
   --max-instances 1 --memory 512Mi --cpu 1 --timeout 30 \
   --set-env-vars "GEMINI_MODEL=gemini-3.8-flash,GEMINI_LOCATION=global,PAID_API_UNTIL=${PAID_API_UNTIL},MAX_GEMINI_CALLS_PER_DAY=${MAX_PAID_CALLS_PER_DAY},MAX_GOOGLE_CALLS_PER_DAY=${MAX_PAID_CALLS_PER_DAY}" \
-  "${SECRET_ARGS[@]}"
+  ${SECRET_ARGS[@]+"${SECRET_ARGS[@]}"}
 
 if [ -z "$(gcloud run services get-iam-policy "$SERVICE" --region "$REGION" --flatten='bindings[].members' \
     --filter='bindings.role=roles/run.invoker AND bindings.members=allUsers' --format='value(bindings.role)')" ]; then
