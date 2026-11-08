@@ -10,7 +10,7 @@
 | iOS独自ビルドのGoogle地図 | Maps SDK for iOS。Bundle IDでキー制限 | Expoのビルド環境変数 |
 | Google徒歩経路 | Routes API。API制限をRoutes APIに限定したサーバー用キー | サーバーの `GOOGLE_ROUTES_API_KEY` |
 
-Expo Goでの地図確認は追加設定不要です。iOSの既定地図はApple Mapsです。Google MapsをiOSで使う場合は、設定を含むdevelopment buildが必要になります。[Expo地図の公式設定](https://docs.expo.dev/versions/v57.0.0/sdk/map-view/)
+Expo Goでの地図確認は追加設定不要です。iOSの既定地図はApple Mapsです。Google MapsをiOSで使う場合は、設定を含むdevelopment buildが必要になります。[Expo地図の公式設定](https://docs.expo.dev/versions/v58.0.0/sdk/map-view/)
 
 サーバー用キーを `EXPO_PUBLIC_*`、JavaScriptバンドル、GitHubに入れないでください。ネイティブSDK用キーはバイナリに含まれるため、上記のアプリ制限が前提です。Google CloudのクレジットがMaps Platformの利用に適用されるかは、提供プログラムと請求画面で確認してください。
 

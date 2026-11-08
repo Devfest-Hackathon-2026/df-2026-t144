@@ -2,11 +2,11 @@
 
 **いつもの道に、まだ知らない物語がある。**
 
-目的地へ向かう途中の「？」に近づき、街の物語を発見するモバイルアプリです。React Native / Expo SDK 57で、iOS・Androidを主対象にしています。今日のMVPは京都三条・高瀬川周辺を仮の対象地域として、発見から図鑑保存までを実装しています。
+目的地へ向かう途中の「？」に近づき、街の物語を発見するモバイルアプリです。React Native / Expo SDK 58で、iOS・Androidを主対象にしています。今日のMVPは京都三条・高瀬川周辺を仮の対象地域として、発見から図鑑保存までを実装しています。
 
 ## まず動かす
 
-Node.js 22.13以上、pnpm 11系を使用します。リポジトリ直下で実行してください。
+Node.js 24.3以上の24系（または22.13以上の22系）、pnpm 11系を使用します。リポジトリ直下で実行してください。
 
 ```sh
 pnpm install
@@ -15,7 +15,7 @@ pnpm start
 
 同じWi-Fiのスマートフォンで、Expo Goから表示されたQRコードを開きます。初期状態は「体験デモ」です。目的地と寄り道時間を選び、「？」→「デモでここへ移動」→「立ち止まって、発見する」の順に操作できます。デモにAPIキーは不要です。
 
-2026年11月8日時点のExpo公式案内は、実機のExpo GoにはSDK 57を案内しています。インストール済みExpo Goの対応SDKを合わせてください。iOS実機では、Expo CLI（`pnpm exec expo login`）とExpo Goに同じExpoアカウントでログインする必要があります。アプリ内のユーザーログインは実装していません。[対応SDK](https://docs.expo.dev/get-started/create-a-project/)、[実機起動とログイン条件](https://docs.expo.dev/get-started/start-developing/)
+このプロジェクトはSDK 58対応のExpo Goで開きます。SDK 57との不一致が実機で発生したため、SDK 58へ更新済みです。バージョン不一致が表示された場合は、Expo Goの対応SDKとプロジェクトのSDKを確認してください。iOS実機では、Expo CLI（`pnpm exec expo login`）とExpo Goに同じExpoアカウントでログインします。アプリ内のユーザーログインは実装していません。[SDK更新手順](https://docs.expo.dev/workflow/upgrading-expo-sdk-walkthrough/)、[実機起動とログイン条件](https://docs.expo.dev/get-started/start-developing/)
 
 Webで画面を確認する場合は次を使います。React Native Webの略図でUIを確認するためのプレビューであり、ネイティブ地図や実機GPSの検証は別途必要です。
 
@@ -37,7 +37,7 @@ pnpm web
 
 [.env.example](.env.example)を`.env`にコピーし、アプリ側の`EXPO_PUBLIC_ROUTES_URL`とサーバー側の`GOOGLE_ROUTES_API_KEY`を設定します。サーバーは別ターミナルで`pnpm server`を起動します。スマートフォンから接続する場合、URLには開発PCのLANアドレスを使用します。キーを設定するまでは空欄のままで構いません。
 
-地図SDKの設定と経路APIは別です。iOSの既定地図はApple Mapsで、Googleの実経路線を重ねるにはGoogle Mapsを設定した独自ビルドが必要です。接続手順、環境変数、公開前の残作業は[Google Cloud接続メモ](docs/GOOGLE-CLOUD.md)にまとめています。[Google公式・Routes API](https://developers.google.com/maps/documentation/routes/compute_route_directions)、[Expo公式・地図設定](https://docs.expo.dev/versions/v57.0.0/sdk/map-view/)
+地図SDKの設定と経路APIは別です。iOSの既定地図はApple Mapsで、Googleの実経路線を重ねるにはGoogle Mapsを設定した独自ビルドが必要です。接続手順、環境変数、公開前の残作業は[Google Cloud接続メモ](docs/GOOGLE-CLOUD.md)にまとめています。[Google公式・Routes API](https://developers.google.com/maps/documentation/routes/compute_route_directions)、[Expo公式・地図設定](https://docs.expo.dev/versions/v58.0.0/sdk/map-view/)
 
 ## チェック
 

@@ -6,7 +6,7 @@
 
 「目的地へ行く途中、少し寄り道してでも『？』の正体を知りたくなるか」を確かめる。移動の目的を保ったまま、近づく・発見する・物語を読む・次の場所が気になる、という一巡を作る。
 
-主対象はiOS・AndroidのReact Nativeアプリ。Expo SDK 57を採用する。React Native Webは同じUIの確認用で、ネイティブアプリ完成の判定には用いない。
+主対象はiOS・AndroidのReact Nativeアプリ。Expo SDK 58を採用する。React Native Webは同じUIの確認用で、ネイティブアプリ完成の判定には用いない。
 
 ## 今日採用する範囲
 
