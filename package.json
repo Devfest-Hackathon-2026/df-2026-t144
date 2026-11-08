@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "server": "node --env-file-if-exists=.env server/index.mjs",
-    "test:server": "node --test server/*.test.mjs"
+    "test:server": "node --test server/*.test.mjs",
+    "stories:draft": "node --env-file-if-exists=.env scripts/draft-stories.mjs",
+    "stories:check": "node scripts/check-stories.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~58.0.17",
