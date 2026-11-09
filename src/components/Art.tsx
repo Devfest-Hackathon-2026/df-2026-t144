@@ -90,8 +90,23 @@ function Road() {
   </>;
 }
 
+// A bronze figure kneeling on a stone pedestal, bowing toward a distant roof line.
+function Statue() {
+  return <>
+    <Sky id="sky-statue" />
+    <Circle cx="262" cy="40" r="12" fill={RED} opacity={0.85} />
+    <Path d="M 196 92 L 232 78 L 268 92 Z M 204 92 H 260 V 102 H 204 Z" fill={INK} opacity={0.35} />
+    <Rect x="0" y="150" width="320" height="30" fill={SAND} opacity={0.6} />
+    <Path d="M 70 112 H 170 V 160 H 70 Z" fill="#B7A48A" stroke={INK} strokeWidth={2.5} />
+    <Path d="M 62 160 H 178 V 168 H 62 Z" fill={SEPIA} />
+    <Path d="M 86 112 C 86 92 98 80 112 78 C 124 76 134 82 142 92 L 150 104 L 140 108 L 130 98 C 126 104 124 110 124 112 Z" fill="#5E6B5B" stroke={INK} strokeWidth={2} />
+    <Circle cx="150" cy="86" r="9" fill="#5E6B5B" stroke={INK} strokeWidth={2} />
+    <Path d="M 98 112 L 92 104 M 118 112 L 120 102" stroke={INK} strokeWidth={2} />
+  </>;
+}
+
 export default function Art({ category, height = 180 }: { category: string; height?: number }) {
   return <Svg width="100%" height={height} viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">
-    {category === '水路' ? <Canal /> : category === '建築' ? <Bridge /> : category === '文化' ? <Road /> : <Monument />}
+    {category === '水路' ? <Canal /> : category === '建築' ? <Bridge /> : category === '文化' ? <Road /> : category === '像' ? <Statue /> : <Monument />}
   </Svg>;
 }

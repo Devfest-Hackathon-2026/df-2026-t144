@@ -101,6 +101,22 @@
   - https://www2.city.kyoto.lg.jp/somu/rekishi/fm/ishibumi/html/hi105.html
 - sourceNote: 京都市石碑DB HI105が事実と座標を明記。石碑は三条大橋東詰北側。横断や撮影の際は立ち止まれる歩道上で操作する。
 
+## 6. 高山彦九郎の像(11/10追加)
+
+石碑以外の「？」として足した。人物の銅像で、撤去と再建の歴史がある。
+
+- id: `takayama-hikokuro`
+- category: `像`(topics: `people`, `history`)
+- location: `{ "latitude": 35.00894444, "longitude": 135.77252778 }`
+- originalCoordinate: `北緯35度00分32.2秒／東経135度46分21.1秒(世界測地系)`
+- coordinateKind: `stone_marker`(「高山彦九郎先生皇居望拝之趾」の石標。銅像はその近く)
+- hint: 「橋の東のたもとに、ある人物の像があります。その人は、この橋の上から何を拝んだのでしょう。」
+- verifiedFacts: 高山彦九郎(1747〜93)は上野国出身の尊王家。三条大橋から御所を伏し拝んだという逸話(伝承として扱う)。逸話に基づき昭和3年に東詰に銅像。昭和19年に金属供出で撤去、現在の像は昭和36年の再建。石標は昭和19年の撤去時に跡を示すために建てられた。
+- relatedSpotIds: `ekiden-monument`(駅伝の碑からも双方向に関連付け)
+- sourceUrls:
+  - https://www2.city.kyoto.lg.jp/somu/rekishi/fm/ishibumi/html/hi095.html
+- sourceNote: 京都市石碑DB HI095(所在地は東山区三条大橋東詰南側)。事実はClaude Codeが出典の本文から書き起こした。**人による照合と現地確認はまだ**。像の姿勢(ひざをつき拝む姿か)は出典に書かれていないので、本文・ヒントでは姿勢を言い切らない。
+
 ## 関連付け表示の文案
 
 - `takase-ichino-funairi` → `zuisenji`: 「この運河を開いた角倉了以は、川沿いの寺の建立にも関わっています。」

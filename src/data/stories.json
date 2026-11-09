@@ -178,5 +178,35 @@
     "generatedAt": "2026-11-09T16:37:55.870Z",
     "problems": [],
     "reviewNote": "本文を人が修正(Claude Code(言い回しの修正のみ・未照合))"
+  },
+  {
+    "spotId": "takayama-hikokuro",
+    "topicId": "people",
+    "text": "目の前の銅像の人物は、上野国出身の尊王家・高山彦九郎です。諸国を歴遊した彼には、京都に遊説した際、三条大橋からはるかに御所を伏し拝んだという逸話があります。現在の銅像はその逸話に基づき再建されたものです。はるかに御所を伏し拝んだとされる、彼の姿をぜひ眺めてみてください。",
+    "usedFactIds": [
+      "f1",
+      "f2",
+      "f3",
+      "f4"
+    ],
+    "reviewStatus": "draft",
+    "model": "gemini-3.8-flash",
+    "generatedAt": "2026-11-09T17:46:50.242Z",
+    "problems": []
+  },
+  {
+    "spotId": "takayama-hikokuro",
+    "topicId": "history",
+    "text": "御所を伏し拝んだ逸話から1928年に建てられた高山彦九郎像は、1944年の金属供出で撤去された歴史を持ちます。現在の像は1961年に再建されたものですが、「高山彦九郎先生皇居望拝之趾」の石標は、1944年の撤去時にその跡を示すため建てられました。ぜひ像とともに石標も確かめてみてください。",
+    "usedFactIds": [
+      "f2",
+      "f3",
+      "f4",
+      "f5"
+    ],
+    "reviewStatus": "draft",
+    "model": "gemini-3.8-flash",
+    "generatedAt": "2026-11-09T17:46:59.387Z",
+    "problems": []
   }
 ]
