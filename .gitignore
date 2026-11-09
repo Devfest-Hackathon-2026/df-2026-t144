@@ -10,3 +10,32 @@ android/
 .DS_Store
 coverage/
 *.log
+
+# 運営の提出用リポジトリのテンプレートから
+# 秘密情報（コミットしない）
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+*.pem
+*.key
+*.p12
+service-account*.json
+credentials*.json
+google-services.json
+GoogleService-Info.plist
+
+# 依存関係とビルドの成果物
+build/
+out/
+.next/
+.wrangler/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS とエディタ
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
