@@ -7,6 +7,7 @@ import { useFonts } from 'expo-font';
 import { DelaGothicOne_400Regular } from '@expo-google-fonts/dela-gothic-one';
 import Art from './src/components/Art';
 import CameraScan from './src/components/CameraScan';
+import DesktopIntro from './src/components/DesktopIntro';
 import DiscoveryCard from './src/components/DiscoveryCard';
 import DiscoveryMap from './src/components/Map';
 import InterestPicker, { InterestExamples } from './src/components/InterestPicker';
@@ -196,7 +197,7 @@ function Michi() {
   const gpsStatus = location.loading ? '現在地を取得しています。' : location.fix ? `${location.fix.accuracy === null ? 'GPSの精度は不明です。' : `GPSの精度は約${Math.round(location.fix.accuracy)}m。`}現在地はアプリの利用中だけ取得します。` : location.error ? '現在地を利用できません。' : '現在地を待っています。';
   const closeSpot = () => { if (!saving) { setSelectedId(null); setCardView(false); } };
 
-  return <View style={s.desktop}><View style={[s.app, width > 600 && s.desktopApp]}>
+  return <View style={s.desktop}>{Platform.OS === 'web' && width >= 1280 && <DesktopIntro width={(width - 480) / 2} />}<View style={[s.app, width > 600 && s.desktopApp]}>
     <StatusBar style="light" />
     <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
       <View style={s.header}>
