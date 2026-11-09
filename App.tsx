@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Linking, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Animated, Linking, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -67,6 +67,11 @@ function Michi() {
   const [routeError, setRouteError] = useState<string | null>(null);
   const [topicIds, setTopicIds] = useState<string[]>([]);
   const routeRequest = useRef(0);
+  // Demo walk: the blue dot walks to a "?" on the map instead of jumping there.
+  const walkTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const walkScroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const [walkTarget, setWalkTarget] = useState<Spot | null>(null);
+  useEffect(() => () => { if (walkTimer.current) clearInterval(walkTimer.current); }, []);
   const location = useLocation(mode === 'gps');
   const destination = DESTINATIONS.find(d => d.id === destinationId)!;
   const demoRoutes = useMemo(() => createDemoRoutes(destination, budget, SPOTS, DEMO_ORIGIN, topicIds), [destinationId, budget, topicIds]);
@@ -147,9 +152,32 @@ function Michi() {
     catch { setNotice('記録を消せませんでした。'); }
     finally { setConfirmReset(false); }
   }
-  const changeMode = (value: Mode) => { if (saving) return; setMode(value); setDemoPosition(DEMO_ORIGIN); setConfirmReset(false); };
-  const openSpot = (id: string, card = false) => { setCardView(card); setSelectedId(id); };
-  const startWalk = () => { setWalking(true); setDemoPosition(DEMO_ORIGIN); };
+  const stopDemoWalk = () => { if (walkTimer.current) clearInterval(walkTimer.current); walkTimer.current = null; setWalkTarget(null); };
+  const changeMode = (value: Mode) => { if (saving) return; stopDemoWalk(); setMode(value); setDemoPosition(DEMO_ORIGIN); setConfirmReset(false); };
+  // Opening any spot (a tap, or a demo walk arriving) ends a walk in progress.
+  const openSpot = (id: string, card = false) => { stopDemoWalk(); setCardView(card); setSelectedId(id); };
+  const startWalk = () => { stopDemoWalk(); setWalking(true); setDemoPosition(DEMO_ORIGIN); };
+  /** Demo only: close the sheet, walk the blue dot to the "?" on the map, then reopen it. Instant when the OS asks for reduced motion. */
+  async function demoWalkTo(spot: Spot) {
+    stopDemoWalk();
+    const from = demoPosition;
+    const to = spot.coordinate;
+    const meters = distanceMeters(from, to);
+    const reduce = await AccessibilityInfo.isReduceMotionEnabled().catch(() => false);
+    if (reduce || !Number.isFinite(meters) || meters < 5) { setDemoPosition(to); setNow(Date.now()); return; }
+    setSelectedId(null); setCardView(false); setTab('walk');
+    walkScroll.current?.scrollTo({ y: 0, animated: true });
+    setWalkTarget(spot);
+    const duration = Math.min(3500, Math.max(1800, meters * 18));
+    const started = Date.now();
+    walkTimer.current = setInterval(() => {
+      const progress = Math.min(1, (Date.now() - started) / duration);
+      const eased = progress < 0.5 ? 2 * progress * progress : 1 - (-2 * progress + 2) ** 2 / 2;
+      setDemoPosition({ latitude: from.latitude + (to.latitude - from.latitude) * eased, longitude: from.longitude + (to.longitude - from.longitude) * eased });
+      if (progress >= 1) { setNow(Date.now()); openSpot(spot.id); }
+    }, 80);
+  }
+  const skipDemoWalk = () => { if (!walkTarget) return; setDemoPosition(walkTarget.coordinate); setNow(Date.now()); openSpot(walkTarget.id); };
   function startFirstDiscovery() {
     const firstId = demoRoutes.find(option => option.kind === 'discovery')?.spotIds[0];
     if (!firstId) return;
@@ -194,7 +222,7 @@ function Michi() {
         })}</View>
       </View>
 
-      {tab === 'walk' ? <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
+      {tab === 'walk' ? <ScrollView ref={walkScroll} style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={[s.mapBlock, { height: mapHeight }]}>
           <DiscoveryMap spots={visibleSpots} discoveredIds={discoveredIds} route={route} destination={destination} position={currentFix} selectedId={selectedId ?? undefined} onSelect={id => openSpot(id)} />
           <View style={s.routeCard}>
@@ -213,14 +241,22 @@ function Michi() {
             </>}
           </View>
           <View style={s.mapBar}>
-            <View pointerEvents="none" style={s.mapBarCount}>
+            {walkTarget ? <>
+              <View pointerEvents="none" style={s.mapBarCount} accessibilityLiveRegion="polite">
+                <Text style={[t.note14B150, { color: c.mist }]}>「？」へ歩いています（デモ）</Text>
+                <Text style={[t.display26, { color: c.redText }]}><Text style={[t.std16B170, { color: c.white }]}>残り </Text>{formatDistance(distanceMeters(demoPosition, walkTarget.coordinate))}</Text>
+              </View>
+              <Pressable accessibilityRole="button" accessibilityLabel="移動をスキップする" onPress={skipDemoWalk} style={({ pressed }) => [s.barCta, s.barSkip, pressed && { opacity: .8 }]}>
+                <View style={s.unskew}><Text style={[t.oln16B100, { color: c.navy }]}>スキップ</Text></View>
+              </Pressable>
+            </> : <View pointerEvents="none" style={s.mapBarCount}>
               <Text style={[t.note14B150, { color: c.mist }]}>{walking ? 'このルートの残り' : 'このルートの発見'}</Text>
               <Text style={[t.display26, { color: c.redText }]}>{walking ? (route?.spotIds.length ?? 0) - progress : route?.spotIds.length ?? 0}<Text style={[t.std16B170, { color: c.white }]}> 件</Text></Text>
-            </View>
-            {!walking && routes.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel={route?.kind === 'discovery' ? '発見ルートで出発する' : '通常ルートで出発する'} onPress={startWalk} style={({ pressed }) => [s.barCta, pressed && { backgroundColor: c.redDark }]}>
+            </View>}
+            {!walkTarget && !walking && routes.length > 0 &&<Pressable accessibilityRole="button" accessibilityLabel={route?.kind === 'discovery' ? '発見ルートで出発する' : '通常ルートで出発する'} onPress={startWalk} style={({ pressed }) => [s.barCta, pressed && { backgroundColor: c.redDark }]}>
               <View style={s.unskew}><Text style={[t.oln16B100, { color: c.white }]}>出発する</Text><Icon name="chevron" size={18} /></View>
             </Pressable>}
-            {walking && nextSpot && <Pressable accessibilityRole="button" accessibilityLabel={`次の「？」を開く。${nextSpot.hint}`} onPress={() => openSpot(nextSpot.id)} style={({ pressed }) => [s.barCta, pressed && { backgroundColor: c.redDark }]}>
+            {!walkTarget && walking && nextSpot && <Pressable accessibilityRole="button" accessibilityLabel={`次の「？」を開く。${nextSpot.hint}`} onPress={() => openSpot(nextSpot.id)} style={({ pressed }) => [s.barCta, pressed && { backgroundColor: c.redDark }]}>
               <View style={s.unskew}><Text style={[t.oln16B100, { color: c.white }]}>次の「？」へ</Text><Icon name="chevron" size={18} /></View>
             </Pressable>}
           </View>
@@ -380,7 +416,7 @@ function Michi() {
         {notice && <View style={s.modalNotice}><Text style={[t.std16N170, { color: c.white }]}>{notice}</Text></View>}
         {selected && (cardView && discoveredIds.includes(selected.id)
           ? <CardReveal spot={selected} discovery={modeDiscoveries.find(d => d.spotId === selected.id)!} next={nextUndiscovered(nextPool, discoveredIds, selected.id)} complete={completeText} onNext={id => openSpot(id)} onShare={() => void share(selected)} onStory={() => setCardView(false)} onBook={() => { closeSpot(); setTab('book'); }} onClose={closeSpot} />
-          : <SpotDetail spot={selected} mode={mode} discovered={discoveredIds.includes(selected.id)} fix={currentFix} saving={saving} loaded={loaded && !storageError} onClose={closeSpot} onDiscover={() => void discover(selected)} onCameraMatch={() => void discover(selected, true)} camera={getCameraUnlockState(selected, mode, currentFix)} onMove={() => { setDemoPosition(selected.coordinate); setNow(Date.now()); }} onRelated={id => openSpot(id)} onSource={url => void openSource(url)} discoveredIds={discoveredIds} onCard={() => setCardView(true)} locationHelp={locationHelp} topicIds={topicIds} />)}
+          : <SpotDetail spot={selected} mode={mode} discovered={discoveredIds.includes(selected.id)} fix={currentFix} saving={saving} loaded={loaded && !storageError} onClose={closeSpot} onDiscover={() => void discover(selected)} onCameraMatch={() => void discover(selected, true)} camera={getCameraUnlockState(selected, mode, currentFix)} onMove={() => void demoWalkTo(selected)} onRelated={id => openSpot(id)} onSource={url => void openSource(url)} discoveredIds={discoveredIds} onCard={() => setCardView(true)} locationHelp={locationHelp} topicIds={topicIds} />)}
       </View></View>
     </Modal>
   </View></View>;
@@ -406,7 +442,7 @@ function SpotDetail({ spot, mode, discovered, fix, saving, loaded, onClose, onDi
         </View>}>
         <View style={s.hintBox}><Text style={[t.note14B150, { color: c.redText }]}>ヒント</Text><Text style={[t.std18B160, { color: c.white }]}>{spot.hint}</Text></View>
         {locationHelp}
-        {mode === 'demo' && !unlock.eligible && <Button label="デモでこの場所へ移動" variant="light" icon="pin" onPress={onMove} />}
+        {mode === 'demo' && !unlock.eligible && <Button label="デモでここまで歩く" variant="light" icon="walk" onPress={onMove} />}
       </CameraScan>
     </ScrollView>
   </>;
@@ -510,6 +546,7 @@ const s = StyleSheet.create({
   compareDiscoveryIdle: { opacity: .75 },
   mapBar: { position: 'absolute', left: 10, right: 10, bottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, backgroundColor: 'rgba(11, 22, 49, 0.94)', borderWidth: 1, borderColor: c.line, borderRadius: radius.m, paddingLeft: 16, paddingRight: 8, paddingVertical: 8 },
   mapBarCount: { flexShrink: 1 },
+  barSkip: { backgroundColor: c.white },
   barCta: { minHeight: 48, paddingHorizontal: 18, justifyContent: 'center', backgroundColor: c.red, transform: [{ skewX: '-10deg' }] },
   section: { paddingHorizontal: 16, paddingTop: 12, gap: 16 },
   guide: { backgroundColor: c.navyCard, borderWidth: 1, borderColor: c.line, borderRadius: radius.m, padding: 16, gap: 12 },

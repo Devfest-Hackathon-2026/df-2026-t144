@@ -51,7 +51,10 @@ function GoogleMap(props: MapProps & { apiKey: string; onFail: () => void }) {
   const element = useRef<HTMLDivElement | null>(null);
   const map = useRef<any>(null);
   const overlays = useRef<any[]>([]);
+  const dot = useRef<any>(null);
   const [maps, setMaps] = useState<any>(null);
+  const spotsKey = props.spots.map((spot) => spot.id).join(',');
+  const doneKey = props.discoveredIds.join(',');
 
   useEffect(() => {
     const w = window as any;
@@ -101,12 +104,24 @@ function GoogleMap(props: MapProps & { apiKey: string; onFail: () => void }) {
     flag.innerHTML = PAGODA_SVG;
     flag.setAttribute('aria-label', `目的地 ${props.destination.name}`);
     add(new maps.marker.AdvancedMarkerElement({ map: map.current, position: position(props.destination.coordinate), content: flag, zIndex: 5 }));
-    if (props.position) {
-      const dot = document.createElement('div');
-      dot.style.cssText = `width:18px;height:18px;border-radius:50%;background:${c.user};border:3px solid #fff;box-shadow:0 0 0 8px ${c.user}44`;
-      add(new maps.marker.AdvancedMarkerElement({ map: map.current, position: position(props.position), content: dot, zIndex: 20 }));
+    // The arrays are new on every render; rebuild only when their contents change.
+  }, [maps, spotsKey, doneKey, props.route, props.destination, props.selectedId]);
+
+  // The current-position dot moves on its own, so the demo walk (12 updates a second)
+  // only shifts one marker instead of rebuilding every pin.
+  useEffect(() => {
+    if (!maps || !map.current) return;
+    if (!props.position) {
+      if (dot.current) dot.current.map = null;
+      dot.current = null;
+      return;
     }
-  }, [maps, props.spots, props.discoveredIds, props.route, props.destination, props.position, props.selectedId]);
+    const at = { lat: props.position.latitude, lng: props.position.longitude };
+    if (dot.current) { dot.current.position = at; return; }
+    const content = document.createElement('div');
+    content.style.cssText = `width:18px;height:18px;border-radius:50%;background:${c.user};border:3px solid #fff;box-shadow:0 0 0 8px ${c.user}44`;
+    dot.current = new maps.marker.AdvancedMarkerElement({ map: map.current, position: at, content, zIndex: 20 });
+  }, [maps, props.position?.latitude, props.position?.longitude]);
 
   return <View style={styles.frame}>
     <div ref={element} style={{ width: '100%', height: '100%' }} />
