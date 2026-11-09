@@ -1,5 +1,16 @@
 import type { Spot, StoryVariant, Topic } from './types.ts';
 
+/** One-tap samples, so a first-time visitor sees Gemini work without typing. Each also maps to a topic by keywords (tested). */
+export const INTEREST_EXAMPLES = ['水路が好き', '幕末の話', '橋の飾り', 'お寺めぐり'];
+
+/**
+ * The "?" to suggest after a discovery: the first undiscovered spot of `pool`
+ * (the walking route, or the ranked list) other than the one just found.
+ */
+export function nextUndiscovered<T extends { id: string }>(pool: T[], discoveredIds: string[], exceptId?: string): T | null {
+  return pool.find((spot) => spot.id !== exceptId && !discoveredIds.includes(spot.id)) ?? null;
+}
+
 // Same rule as server/ai.mjs matchTopicsByKeywords: used when the server is
 // not connected or Gemini is unavailable.
 export function matchTopicsByKeywords(text: string, topics: Topic[]): string[] {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { matchTopicsByKeywords, pickStory, rankSpots, toggleTopic, topicScore } from '../src/interests.ts';
+import { INTEREST_EXAMPLES, matchTopicsByKeywords, nextUndiscovered, pickStory, rankSpots, toggleTopic, topicScore } from '../src/interests.ts';
 import { createDemoRoutes } from '../src/domain.ts';
 import type { Destination, Spot, StoryVariant, Topic } from '../src/types.ts';
 
@@ -62,4 +62,18 @@ test('every demo destination, budget and single topic has a discovery route with
       }
     }
   }
+});
+
+test('every one-tap interest example maps to a topic even without the server', () => {
+  for (const example of INTEREST_EXAMPLES) {
+    assert.ok(matchTopicsByKeywords(example, catalog.topics).length > 0, example);
+  }
+});
+
+test('the next "?" skips the spot just found and anything already discovered', () => {
+  const pool = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  assert.equal(nextUndiscovered(pool, [], 'a')?.id, 'b');
+  assert.equal(nextUndiscovered(pool, ['a', 'b'], 'a')?.id, 'c');
+  assert.equal(nextUndiscovered(pool, ['a', 'b', 'c'], 'c'), null);
+  assert.equal(nextUndiscovered([], []), null);
 });

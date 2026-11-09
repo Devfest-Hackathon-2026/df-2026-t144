@@ -9,11 +9,11 @@ import Art from './src/components/Art';
 import CameraScan from './src/components/CameraScan';
 import DiscoveryCard from './src/components/DiscoveryCard';
 import DiscoveryMap from './src/components/Map';
-import InterestPicker from './src/components/InterestPicker';
+import InterestPicker, { InterestExamples } from './src/components/InterestPicker';
 import RelatedTeaser from './src/components/RelatedTeaser';
 import { SPOTS, DESTINATIONS, DEMO_ORIGIN, STORIES, TOPICS } from './src/data/spots';
 import { addDiscovery, createDemoRoutes, distanceMeters, formatDistance, getAreaStatus, getCameraUnlockState, getUnlockState, sanitizeDiscoveries } from './src/domain';
-import { pickStory, rankSpots, topicScore } from './src/interests';
+import { nextUndiscovered, pickStory, rankSpots, topicScore } from './src/interests';
 import { useLocation } from './src/useLocation';
 import { fetchRoutes } from './src/routesClient';
 import { apiBaseUrl, apiConfigured } from './src/apiClient';
@@ -83,6 +83,9 @@ function Michi() {
   const nextSpot = walking && route ? route.spotIds.map(id => SPOTS.find(spot => spot.id === id)).find(spot => spot && !discoveredIds.includes(spot.id)) : undefined;
   const routeCompleted = walking && route?.kind === 'discovery' && route.spotIds.every(id => discoveredIds.includes(id));
   const progress = route?.spotIds.filter(id => discoveredIds.includes(id)).length ?? 0;
+  // After a discovery, offer the next "?": the walking route's next stop, or the next one in the ranked list.
+  const nextPool = walking && route?.kind === 'discovery' ? SPOTS.filter(spot => route.spotIds.includes(spot.id)).sort((a, b) => route.spotIds.indexOf(a.id) - route.spotIds.indexOf(b.id)) : rankSpots(SPOTS, topicIds);
+  const completeText = routeCompleted ? 'このルートの「？」を、すべて見つけました。' : discoveredIds.length >= SPOTS.length ? `${SPOTS.length}か所すべての「？」を見つけました。` : null;
 
   useEffect(() => {
     let alive = true;
@@ -243,6 +246,11 @@ function Michi() {
               <Slant color={c.red} style={{ paddingHorizontal: 10 }}><Text style={[t.display18, { color: c.white }]}>{index + 1}</Text></Slant>
               <View style={{ flex: 1 }}><Text style={[t.std16B170, { color: c.white }]}>{title}</Text><Text style={[t.note14N150, { color: c.mist }]}>{body}</Text></View>
             </View>)}
+            <View style={s.guideInterest}>
+              <Text style={[t.std16B170, { color: c.white }]}>まず、気になるものを1つ選ぶ</Text>
+              <Text style={[t.note14N150, { color: c.mist }]}>選んだ言葉をGeminiが読み取り、発見ルートの「？」を選び直します。</Text>
+              <InterestExamples topics={TOPICS} onChange={setTopicIds} />
+            </View>
             <Button label="最初の「？」を体験する" icon="sparkle" onPress={startFirstDiscovery} disabled={Boolean(storageError)} />
             <Text style={[t.note14N150, { color: c.muted, textAlign: 'center' }]}>今いる場所から移動しなくても試せます。</Text>
           </View>}
@@ -371,7 +379,7 @@ function Michi() {
       <View style={s.scrim}><View style={[s.sheet, s.detailSheet]}>
         {notice && <View style={s.modalNotice}><Text style={[t.std16N170, { color: c.white }]}>{notice}</Text></View>}
         {selected && (cardView && discoveredIds.includes(selected.id)
-          ? <CardReveal spot={selected} discovery={modeDiscoveries.find(d => d.spotId === selected.id)!} onShare={() => void share(selected)} onStory={() => setCardView(false)} onBook={() => { closeSpot(); setTab('book'); }} onClose={closeSpot} />
+          ? <CardReveal spot={selected} discovery={modeDiscoveries.find(d => d.spotId === selected.id)!} next={nextUndiscovered(nextPool, discoveredIds, selected.id)} complete={completeText} onNext={id => openSpot(id)} onShare={() => void share(selected)} onStory={() => setCardView(false)} onBook={() => { closeSpot(); setTab('book'); }} onClose={closeSpot} />
           : <SpotDetail spot={selected} mode={mode} discovered={discoveredIds.includes(selected.id)} fix={currentFix} saving={saving} loaded={loaded && !storageError} onClose={closeSpot} onDiscover={() => void discover(selected)} onCameraMatch={() => void discover(selected, true)} camera={getCameraUnlockState(selected, mode, currentFix)} onMove={() => { setDemoPosition(selected.coordinate); setNow(Date.now()); }} onRelated={id => openSpot(id)} onSource={url => void openSource(url)} discoveredIds={discoveredIds} onCard={() => setCardView(true)} locationHelp={locationHelp} topicIds={topicIds} />)}
       </View></View>
     </Modal>
@@ -438,7 +446,7 @@ function SpotDetail({ spot, mode, discovered, fix, saving, loaded, onClose, onDi
 
 const nativeDriver = Platform.OS !== 'web';
 
-function CardReveal({ spot, discovery, onShare, onStory, onBook, onClose }: { spot: Spot; discovery: Discovery; onShare: () => void; onStory: () => void; onBook: () => void; onClose: () => void }) {
+function CardReveal({ spot, discovery, next, complete, onNext, onShare, onStory, onBook, onClose }: { spot: Spot; discovery: Discovery; next: Spot | null; complete: string | null; onNext: (id: string) => void; onShare: () => void; onStory: () => void; onBook: () => void; onClose: () => void }) {
   const pop = useRef(new Animated.Value(0)).current;
   useEffect(() => { Animated.spring(pop, { toValue: 1, friction: 6, tension: 60, useNativeDriver: nativeDriver }).start(); }, [pop]);
   const cardMotion = { opacity: pop.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }), transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }, { rotate: pop.interpolate({ inputRange: [0, 1], outputRange: ['-14deg', '-1.5deg'] }) }] };
@@ -451,8 +459,19 @@ function CardReveal({ spot, discovery, onShare, onStory, onBook, onClose }: { sp
       <Animated.View style={cardMotion}><DiscoveryCard spot={spot} number={cardNumber(spot)} discoveredAt={discovery.discoveredAt} /></Animated.View>
     </View>
     <Text style={[t.note14N150, { color: c.muted, textAlign: 'center' }]}>カードは図鑑に保存済みです。{discovery.mode === 'demo' ? '（デモ）' : ''}</Text>
-    <Button label="SNSでシェア" icon="share" onPress={onShare} />
-    <Button label="図鑑で見る" icon="bookmark" variant="light" onPress={onBook} />
+    {complete && !next && <View style={s.complete} accessibilityLiveRegion="polite">
+      <Slant color={c.red}><Text style={[t.display26, { color: c.white }]}>コンプリート！</Text></Slant>
+      <Text style={[t.std16N170, { color: c.white }]}>{complete}集めたカードは図鑑でいつでも見返せます。</Text>
+    </View>}
+    {next ? <>
+      <View style={s.nextHint}><Text style={[t.note14B150, { color: c.redText }]}>次の「？」のヒント</Text><Text style={[t.std16N170, { color: c.white }]}>{next.hint}</Text></View>
+      <Button label="次の「？」へ" icon="pin" onPress={() => onNext(next.id)} />
+      <Button label="SNSでシェア" icon="share" variant="light" onPress={onShare} />
+      <Button label="図鑑で見る" icon="bookmark" variant="ghost" onPress={onBook} />
+    </> : <>
+      <Button label={complete ? '図鑑で見る' : 'SNSでシェア'} icon={complete ? 'bookmark' : 'share'} onPress={complete ? onBook : onShare} />
+      <Button label={complete ? 'SNSでシェア' : '図鑑で見る'} icon={complete ? 'share' : 'bookmark'} variant="light" onPress={complete ? onShare : onBook} />
+    </>}
     <Button label="物語をもう一度読む" variant="ghost" onPress={onStory} />
     <SafeAreaView edges={['bottom']} />
   </ScrollView>;
@@ -494,6 +513,9 @@ const s = StyleSheet.create({
   barCta: { minHeight: 48, paddingHorizontal: 18, justifyContent: 'center', backgroundColor: c.red, transform: [{ skewX: '-10deg' }] },
   section: { paddingHorizontal: 16, paddingTop: 12, gap: 16 },
   guide: { backgroundColor: c.navyCard, borderWidth: 1, borderColor: c.line, borderRadius: radius.m, padding: 16, gap: 12 },
+  guideInterest: { gap: 8, borderTopWidth: 1, borderColor: c.line, paddingTop: 12 },
+  complete: { alignItems: 'center', gap: 8, paddingVertical: 4 },
+  nextHint: { borderLeftWidth: 4, borderLeftColor: c.red, paddingLeft: 12, gap: 2 },
   guideStep: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   card: { backgroundColor: c.navyCard, borderWidth: 1, borderColor: c.line, borderRadius: radius.m, padding: 16, gap: 14 },
   alert: { backgroundColor: c.navyCard, borderLeftWidth: 4, borderLeftColor: c.red, borderRadius: radius.s, padding: 16, gap: 12 },
