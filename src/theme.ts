@@ -1,7 +1,9 @@
 import { Platform } from 'react-native';
 import type { TextStyle } from 'react-native';
 
-// Art direction: night navy + vermilion red + washi paper (see the key visual).
+// Art direction: night navy + vermilion red + washi paper, with gold for rewards.
+// Smart base (flat, rounded, no slants) and game-like pop in the tokens, chunky
+// buttons and confetti.
 // Readability rules kept from the Digital Agency Design System: body text 16px,
 // notes 14px minimum, text contrast 4.5:1 or more against its background.
 export const colors = {
@@ -11,6 +13,8 @@ export const colors = {
   line: '#33456E', // borders on navy (3:1 vs navy)
   red: '#D7192F', // key color; white text on it is 5.2:1
   redDark: '#A30F22',
+  gold: '#FFC83D', // reward color: discovered pins, card numbers, progress (navy text on it is 11:1)
+  goldDark: '#C9921A',
   redText: '#FF6B7C', // red used as text on navy (5.4:1)
   white: '#FFFFFF',
   mist: '#C9D1E3', // secondary text on navy
@@ -28,7 +32,7 @@ export const colors = {
   mapWater: '#1E3E6E',
 };
 
-export const radius = { s: 4, m: 8, l: 16, full: 9999 };
+export const radius = { s: 6, m: 12, l: 20, full: 9999 };
 
 const bodyFamily = Platform.select({ web: "'Noto Sans JP', sans-serif", default: undefined });
 // Native loads DelaGothicOne_400Regular with expo-font (App.tsx); web uses Google Fonts.

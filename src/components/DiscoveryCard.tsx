@@ -21,7 +21,7 @@ export default function DiscoveryCard({ spot, number, discoveredAt, compact = fa
   return <View style={[s.card, compact && s.compact]} accessibilityLabel={`発見カード No.${String(number).padStart(3, '0')} ${spot.name}。${spot.tagline}`}>
     <View style={s.inner}>
       {!compact && <View style={s.maples} pointerEvents="none"><Maple size={30} rotate={-20} /><Maple size={20} rotate={25} opacity={0.8} /></View>}
-      <Text style={[t.note14B150, s.number]}>No.{String(number).padStart(3, '0')}</Text>
+      <View style={s.number}><Text style={[t.note14B150, { color: c.navy }]}>No.{String(number).padStart(3, '0')}</Text></View>
       <Text style={[compact ? t.display18 : t.display26, s.title]} numberOfLines={2}>{spot.name}</Text>
       {!compact && <Text style={[t.note14N150, s.subtitle]}>— {spot.tagline} —</Text>}
       <View style={[s.art, compact && { height: 84 }]}><Art category={spot.category} height={compact ? 84 : 150} /></View>
@@ -41,7 +41,7 @@ const s = StyleSheet.create({
   compact: { padding: 4 },
   inner: { borderWidth: 1.5, borderColor: '#B89B6E', borderRadius: radius.s, padding: 12, gap: 6 },
   maples: { position: 'absolute', top: -6, right: -4, flexDirection: 'row', alignItems: 'flex-start' },
-  number: { color: c.sepia },
+  number: { alignSelf: 'flex-start', backgroundColor: c.gold, borderRadius: radius.full, paddingHorizontal: 10 },
   title: { color: c.ink, textAlign: 'center' },
   subtitle: { color: c.sepia, textAlign: 'center' },
   art: { height: 150, borderRadius: radius.s, overflow: 'hidden', borderWidth: 1, borderColor: c.paperDeep, marginTop: 4 },

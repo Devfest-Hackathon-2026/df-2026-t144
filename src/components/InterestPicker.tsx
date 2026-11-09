@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import { apiConfigured, fetchInterests } from '../apiClient';
 import { INTEREST_EXAMPLES, matchTopicsByKeywords, toggleTopic } from '../interests';
 import { colors as c, radius, text as t } from '../theme';
-import { Icon, Slant } from '../ui';
+import { Icon, SectionTitle } from '../ui';
 import type { Topic } from '../types';
 
 export type InterestOutcome = { topicIds: string[]; reply: string | null; byGemini: boolean };
@@ -83,14 +83,14 @@ export default function InterestPicker({ topics, selected, onChange }: Props) {
   }
 
   return <View style={s.wrap}>
-    <Slant color={c.red}><Text style={[t.display18, { color: c.white }]} accessibilityRole="header">何が気になる？</Text></Slant>
+    <SectionTitle title="何が気になる？" />
     <Text nativeID="interest-label" style={[t.std16N170, { color: c.mist }]}>好きなものを書くと、関係する「？」を先に出します。</Text>
     <View style={s.inputRow}>
       <TextInput value={text} onChangeText={setText} onSubmitEditing={() => void ask()} placeholder="例：水路、幕末、橋の飾り" placeholderTextColor={c.muted}
         maxLength={80} returnKeyType="search" accessibilityLabel="気になること（自由入力）" style={[t.std16N170, s.input]} />
       <Pressable accessibilityRole="button" accessibilityLabel="入力した内容で探す" onPress={() => void ask()} disabled={!ready}
-        style={({ pressed }) => [s.ask, !ready && s.disabled, pressed && s.pressed]}>
-        <View style={s.unskew}>{loading ? <ActivityIndicator color={c.white} /> : <Text style={[t.oln16B100, { color: ready ? c.white : c.muted }]}>探す</Text>}</View>
+        style={({ pressed }) => [s.ask, !ready && s.disabled, pressed && ready && s.pressed]}>
+        {loading ? <ActivityIndicator color={c.white} /> : <Text style={[t.oln16B100, { color: ready ? c.white : c.muted }]}>探す</Text>}
       </Pressable>
     </View>
     <View style={s.examples}>
@@ -113,16 +113,16 @@ export default function InterestPicker({ topics, selected, onChange }: Props) {
 }
 
 const s = StyleSheet.create({
-  wrap: { gap: 10, backgroundColor: c.navyCard, borderWidth: 1, borderColor: c.line, borderRadius: radius.m, padding: 16 },
-  inputRow: { flexDirection: 'row', gap: 10 },
-  input: { flex: 1, minHeight: 48, borderRadius: radius.s, borderWidth: 1, borderColor: c.line, backgroundColor: c.navy, paddingHorizontal: 12, color: c.white },
-  ask: { minWidth: 76, minHeight: 48, backgroundColor: c.red, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, transform: [{ skewX: '-10deg' }] },
-  unskew: { transform: [{ skewX: '10deg' }] },
-  disabled: { backgroundColor: c.navyRaised, borderWidth: 1, borderColor: c.line }, pressed: { backgroundColor: c.redDark },
+  wrap: { gap: 10, backgroundColor: c.navyCard, borderWidth: 1, borderColor: c.line, borderRadius: radius.l, padding: 16 },
+  inputRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  input: { flex: 1, minHeight: 52, borderRadius: radius.m, borderWidth: 1.5, borderColor: c.line, backgroundColor: c.navy, paddingHorizontal: 14, color: c.white },
+  ask: { minWidth: 76, minHeight: 52, backgroundColor: c.red, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderRadius: radius.m, borderBottomWidth: 4, borderBottomColor: c.redDark },
+  disabled: { backgroundColor: c.navyRaised, borderBottomColor: c.line },
+  pressed: { backgroundColor: c.redDark, minHeight: 49, marginTop: 3, borderBottomWidth: 1 },
   examples: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 2 },
   example: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 6 },
   exampleText: { color: c.link, textDecorationLine: 'underline' },
-  message: { borderLeftWidth: 4, borderLeftColor: c.red, backgroundColor: c.navyRaised, padding: 12, gap: 4 },
+  message: { backgroundColor: c.navyRaised, borderRadius: radius.m, padding: 12, gap: 4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: radius.full, borderWidth: 1, borderColor: c.line, backgroundColor: c.navy, paddingHorizontal: 12, minHeight: 40 },
   chipActive: { backgroundColor: c.red, borderColor: c.red },

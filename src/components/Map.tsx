@@ -5,13 +5,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, G, Path, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import type { MapProps } from './Map.types';
 import { fetchConfig } from '../apiClient';
+import { PIN_BOX, pinSvgMarkup } from '../pins';
 import { colors as c, radius, text as t } from '../theme';
-
-const PIN_SVG = (done: boolean) => `<svg width="40" height="46" viewBox="0 0 40 46" xmlns="http://www.w3.org/2000/svg">
-  <path d="M 4 4 H 36 V 32 H 24 L 20 42 L 16 32 H 4 Z" fill="${done ? c.paper : c.red}" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/>
-  ${done ? `<path d="M 12 18 L 18 24 L 29 12" stroke="${c.red}" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`
-    : '<path d="M 15 13 C 15 8 25 8 25 13 C 25 17 20 17 20 21 M 20 25.5 L 20 26" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/>'}
-</svg>`;
+import { PinShapes } from '../ui';
 
 // Five-story pagoda for the destination (32x40), shared by the Google map and the schematic.
 const PAGODA_ROOFS = [0, 1, 2, 3].map((i) => { const y = 6 + i * 7; const w = 8 + i * 2.5; return `M ${16 - w} ${y + 4} Q 16 ${y - 2} ${16 + w} ${y + 4} L ${16 + w * 0.6} ${y + 7} H ${16 - w * 0.6} Z`; });
@@ -94,11 +90,13 @@ function GoogleMap(props: MapProps & { apiKey: string; onFail: () => void }) {
       const done = props.discoveredIds.includes(spot.id);
       const content = document.createElement('button');
       content.type = 'button';
-      content.innerHTML = PIN_SVG(done);
+      const picked = props.selectedId === spot.id;
+      // Bottom-center of the button is the anchor; the token's tip sits 2px above it.
+      content.innerHTML = pinSvgMarkup(done, spot.category, picked, picked ? 1.15 : 1);
       content.setAttribute('aria-label', `${done ? spot.name : '未発見の「？」'}を開く`);
-      content.style.cssText = `background:none;border:0;padding:0;cursor:pointer;transform:scale(${props.selectedId === spot.id ? 1.2 : 1})`;
+      content.style.cssText = 'background:none;border:0;padding:0;cursor:pointer;display:block;line-height:0';
       content.addEventListener('click', () => props.onSelect(spot.id));
-      add(new maps.marker.AdvancedMarkerElement({ map: map.current, position: position(spot.coordinate), content, zIndex: props.selectedId === spot.id ? 10 : 1 }));
+      add(new maps.marker.AdvancedMarkerElement({ map: map.current, position: position(spot.coordinate), content, zIndex: picked ? 10 : 1 }));
     }
     const flag = document.createElement('div');
     flag.innerHTML = PAGODA_SVG;
@@ -155,12 +153,11 @@ function Schematic(props: MapProps) {
         const actual = project(spot.coordinate.latitude, spot.coordinate.longitude);
         const p = spot.id === 'ekiden-monument' ? { x: actual.x + 26, y: actual.y - 22 } : actual;
         const done = props.discoveredIds.includes(spot.id);
-        const scale = props.selectedId === spot.id ? 1.2 : 1;
+        const picked = props.selectedId === spot.id;
+        const scale = picked ? 1.15 : 1;
         return <g key={spot.id} role="button" tabIndex={0} aria-label={`${done ? spot.name : '未発見の「？」'}を地図で開く`} style={{ cursor: 'pointer' }} onClick={() => props.onSelect(spot.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); props.onSelect(spot.id); } }}>
-          <G transform={`translate(${p.x - 20 * scale} ${p.y - 44 * scale}) scale(${scale})`}>
-            <Path d="M 4 4 H 36 V 32 H 24 L 20 42 L 16 32 H 4 Z" fill={done ? c.paper : c.red} stroke="#FFFFFF" strokeWidth={2.5} strokeLinejoin="round" />
-            {done ? <Path d="M 12 18 L 18 24 L 29 12" stroke={c.red} strokeWidth={4} fill="none" strokeLinecap="round" />
-              : <Path d="M 15 13 C 15 8 25 8 25 13 C 25 17 20 17 20 21 M 20 25.5 L 20 26" stroke="#FFFFFF" strokeWidth={4} fill="none" strokeLinecap="round" />}
+          <G transform={`translate(${p.x - PIN_BOX.tipX * scale} ${p.y - PIN_BOX.tipY * scale}) scale(${scale})`}>
+            <PinShapes done={done} category={spot.category} selected={picked} />
           </G>
         </g>;
       })}

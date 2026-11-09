@@ -4,6 +4,7 @@ import Constants from 'expo-constants';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import type { MapProps } from './Map.types';
 import { colors as c, radius, text as t } from '../theme';
+import { PIN_BOX } from '../pins';
 import { Pagoda, QPin } from '../ui';
 
 // Night style for Google Maps on Android / iOS development builds.
@@ -42,8 +43,9 @@ export default function DiscoveryMap(props: MapProps) {
       </>}
       {props.spots.map(spot => {
         const done = props.discoveredIds.includes(spot.id);
-        return <Marker key={spot.id} coordinate={spot.coordinate} anchor={{ x: .5, y: 1 }} onPress={() => props.onSelect(spot.id)} tracksViewChanges accessibilityLabel={`${done ? spot.name : '未発見の「？」'}を開く`}>
-          <View style={props.selectedId === spot.id && { transform: [{ scale: 1.2 }] }}><QPin done={done} size={36} /></View>
+        const picked = props.selectedId === spot.id;
+        return <Marker key={spot.id} coordinate={spot.coordinate} anchor={{ x: .5, y: PIN_BOX.tipY / PIN_BOX.height }} zIndex={picked ? 10 : 1} onPress={() => props.onSelect(spot.id)} tracksViewChanges accessibilityLabel={`${done ? spot.name : '未発見の「？」'}を開く`}>
+          <QPin done={done} category={spot.category} selected={picked} size={picked ? 46 : 40} />
         </Marker>;
       })}
       <Marker coordinate={props.destination.coordinate} anchor={{ x: .5, y: 1 }} accessibilityLabel={`目的地 ${props.destination.name}`} tracksViewChanges={false}>

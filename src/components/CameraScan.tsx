@@ -166,7 +166,7 @@ const s = StyleSheet.create({
   shutterOff: { borderColor: c.line },
   shutterInner: { width: 62, height: 62, borderRadius: 31, backgroundColor: c.red },
   shutterInnerCamera: { backgroundColor: c.white },
-  message: { borderLeftWidth: 4, borderLeftColor: c.red, backgroundColor: c.navyRaised, padding: 12 },
-  info: { borderLeftColor: c.link },
-  error: { backgroundColor: c.redDark, borderLeftColor: c.white },
+  message: { backgroundColor: c.navyRaised, borderRadius: radius.m, borderWidth: 1.5, borderColor: c.line, padding: 12 },
+  info: { borderColor: c.link },
+  error: { backgroundColor: c.redDark, borderColor: c.redDark },
 });
