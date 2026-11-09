@@ -11,3 +11,5 @@ coverage
 .env.*
 !.env.example
 CLAUDE.local.md
+submission
+.claude
