@@ -94,7 +94,7 @@ function Michi() {
   const progress = route?.spotIds.filter(id => discoveredIds.includes(id)).length ?? 0;
   // After a discovery, offer the next "?": the walking route's next stop, or the next one in the ranked list.
   const nextPool = walking && route?.kind === 'discovery' ? SPOTS.filter(spot => route.spotIds.includes(spot.id)).sort((a, b) => route.spotIds.indexOf(a.id) - route.spotIds.indexOf(b.id)) : rankSpots(SPOTS, topicIds);
-  const completeText = routeCompleted ? 'このルートの「？」を、すべて見つけました。' : discoveredIds.length >= SPOTS.length ? `${SPOTS.length}か所すべての「？」を見つけました。` : null;
+  const completeText = routeCompleted && route ? `寄り道は＋${Math.round(route.extraSeconds / 60)}分。このルートの「？」${route.spotIds.length}か所を、すべて見つけました。` : discoveredIds.length >= SPOTS.length ? `${SPOTS.length}か所すべての「？」を見つけました。` : null;
 
   useEffect(() => {
     let alive = true;
