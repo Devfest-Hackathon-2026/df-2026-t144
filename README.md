@@ -43,9 +43,13 @@ Geminiはサーバーにだけつなぐ。サーバーが未接続でも、ア�
 
 デモの所要時間と経路線は固定の体験用データです。「現地で歩く」は実GPSを使いますが、Google Routesは現在未接続です。iOS・Android実機での地図、位置情報、保存、Googleとの実通信は未検証です。スポットの史実は出典を確認していますが、座標と通行条件は現地未確認です。
 
+## Expo Goから本番のサーバーにつなぐ
+
+[.env.example](.env.example)を`.env`にコピーし、`EXPO_PUBLIC_API_URL=https://michi-176224264627.asia-northeast1.run.app`(Cloud Runの公開URL)を入れて`pnpm start`をやり直します。スマホのExpo Goから、本番のGemini(興味の分類・次の「？」への一言・写真の読み取り)とGoogle Routesを使えます。空欄のままなら、AIを使わない体験デモとして動きます。有料APIの回数は本番と共有なので、試しすぎに注意してください(1日50回まで)。
+
 ## Google Routesを接続する
 
-[.env.example](.env.example)を`.env`にコピーし、アプリ側の`EXPO_PUBLIC_ROUTES_URL`とサーバー側の`GOOGLE_ROUTES_API_KEY`を設定します。サーバーは別ターミナルで`pnpm server`を起動します。スマートフォンから接続する場合、URLには開発PCのLANアドレスを使用します。キーを設定するまでは空欄のままで構いません。
+[.env.example](.env.example)を`.env`にコピーし、アプリ側の`EXPO_PUBLIC_API_URL`(旧名`EXPO_PUBLIC_ROUTES_URL`も可)とサーバー側の`GOOGLE_ROUTES_API_KEY`を設定します。サーバーは別ターミナルで`pnpm server`を起動します。スマートフォンから接続する場合、URLには開発PCのLANアドレスを使用します。キーを設定するまでは空欄のままで構いません。
 
 地図SDKの設定と経路APIは別です。iOSの既定地図はApple Mapsで、Googleの実経路線を重ねるにはGoogle Mapsを設定した独自ビルドが必要です。接続手順、環境変数、公開前の残作業は[Google Cloud接続メモ](docs/GOOGLE-CLOUD.md)にまとめています。[Google公式・Routes API](https://developers.google.com/maps/documentation/routes/compute_route_directions)、[Expo公式・地図設定](https://docs.expo.dev/versions/v58.0.0/sdk/map-view/)
 

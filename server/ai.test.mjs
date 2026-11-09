@@ -6,7 +6,7 @@ import path from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { checkGeneratedText, createTeaser, draftStory, interpretInterest, matchTopicsByKeywords, recognizeSpot } from './ai.mjs';
 import { createGemini, vertexEndpoint } from './gemini.mjs';
-import { createHandler } from './index.mjs';
+import { createHandler, japanDay } from './index.mjs';
 import { loadCatalog } from './routes.mjs';
 import { createStaticHandler } from './static.mjs';
 
@@ -264,7 +264,8 @@ test('daily Gemini ceiling defaults to 50 and env cannot raise it', async () => 
   assert.equal(dailyLimit('10'), 10);
   assert.equal(dailyLimit('0'), 50);
   const gemini = fakeGemini(() => ({ topicIds: ['craft'], reply: '細部に目が行くタイプですね。' }));
-  const handler = createHandler({ catalog, env: { PAID_API_UNTIL: OPEN, MAX_GEMINI_CALLS_PER_DAY: '9999', MAX_AI_REQUESTS_PER_MINUTE: '300' }, gemini, now: () => 0 });
+  // The interest share is raised to its maximum (also capped at 50) so the overall ceiling is what stops it.
+  const handler = createHandler({ catalog, env: { PAID_API_UNTIL: OPEN, MAX_GEMINI_CALLS_PER_DAY: '9999', MAX_INTEREST_CALLS_PER_DAY: '9999', MAX_AI_REQUESTS_PER_MINUTE: '300' }, gemini, now: () => 0 });
   const sources = [];
   for (let index = 0; index < 51; index += 1) {
     sources.push((await invoke(handler, { path: '/v1/interests', body: { text: '建物の飾り' } })).json.source);
@@ -292,4 +293,42 @@ test('static handler serves the web export, falls back to index.html and never e
   assert.equal(escape.headers['Content-Type'], 'text/html; charset=utf-8');
   assert.equal((await read('/%2e%2e/secret.txt')).headers['Content-Type'], 'text/html; charset=utf-8');
   assert.equal((await invoke(handler, { method: 'GET', path: '/health' })).json.ok, true);
+});
+
+test('teaser and interest calls have their own daily share, so photo reading keeps its calls', async () => {
+  const gemini = fakeGemini((args) => {
+    if (args.images?.length) return { texts: ['池田屋騒動之址'], scene: '石碑' };
+    if (args.schema?.properties?.topicIds) return { topicIds: ['history'], reply: '歴史の話をたどりましょう。' };
+    return { text: 'この橋のたもとは、長いリレーの出発点でした。', usedFactIds: ['ekiden-monument:f2'] };
+  });
+  const handler = createHandler({ catalog, env: { PAID_API_UNTIL: OPEN, MAX_GEMINI_CALLS_PER_DAY: '4', MAX_TEASER_CALLS_PER_DAY: '2', MAX_INTEREST_CALLS_PER_DAY: '1' }, gemini });
+  const teaser = async () => (await invoke(handler, { path: '/v1/teaser', body: { fromSpotId: 'sanjo-giboshi', toSpotId: 'ekiden-monument' } })).json.source;
+  const interest = async () => (await invoke(handler, { path: '/v1/interests', body: { text: '幕末の話' } })).json.source;
+  const photo = () => invoke(handler, { path: '/v1/recognize', body: { spotId: 'ikedaya', image: 'A'.repeat(400) } });
+
+  assert.deepEqual([await teaser(), await teaser(), await teaser()], ['gemini', 'gemini', 'fixed']);
+  assert.deepEqual([await interest(), await interest()], ['gemini', 'keywords']);
+  assert.equal(gemini.calls.length, 3, 'exhausted shares do not spend the overall ceiling');
+  const first = await photo();
+  assert.equal(first.status, 200);
+  assert.equal(first.json.matched, true);
+  const second = await photo();
+  assert.equal(second.status, 429);
+  assert.equal(second.json.error.code, 'GEMINI_DAILY_LIMIT');
+  assert.equal(gemini.calls.length, 4);
+});
+
+test('daily ceilings reset at midnight in Japan, not at 09:00 JST', async () => {
+  assert.equal(japanDay(Date.parse('2026-11-13T14:59:59Z')), '2026-11-13');
+  assert.equal(japanDay(Date.parse('2026-11-13T15:00:00Z')), '2026-11-14');
+  let clock = Date.parse('2026-11-13T23:59:00+09:00');
+  const gemini = fakeGemini(() => ({ texts: ['池田屋'], scene: '石碑' }));
+  const handler = createHandler({ catalog, env: { PAID_API_UNTIL: OPEN, MAX_GEMINI_CALLS_PER_DAY: '1' }, gemini, now: () => clock });
+  const photo = async () => (await invoke(handler, { path: '/v1/recognize', body: { spotId: 'ikedaya', image: 'A'.repeat(400) } })).status;
+  assert.equal(await photo(), 200);
+  assert.equal(await photo(), 429);
+  clock = Date.parse('2026-11-14T00:00:00+09:00');
+  assert.equal(await photo(), 200, 'a new day in Japan');
+  clock = Date.parse('2026-11-14T08:59:00+09:00');
+  assert.equal(await photo(), 429, 'still the same day in Japan before 09:00');
 });

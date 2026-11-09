@@ -48,7 +48,7 @@ export function Button({ label, onPress, disabled, loading, variant = 'primary',
   const inactive = disabled || loading;
   const fg = inactive ? c.muted : variant === 'light' ? c.navy : c.white;
   const pressedStyle = { primary: s.primaryPressed, light: s.lightPressed, ghost: s.ghostPressed }[variant];
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: inactive, busy: loading }} disabled={inactive} onPress={onPress}
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: inactive, busy: loading }} aria-disabled={inactive} aria-busy={loading} disabled={inactive} onPress={onPress}
     style={({ pressed }) => [s.base, s[variant], pressed && !inactive && pressedStyle, inactive && s.inactive]}>
     <View style={s.unskew}>
       {loading ? <ActivityIndicator color={fg} /> : <>{icon && <Icon name={icon} color={fg} size={20} />}<Text style={[t.oln16B100, { color: fg }]}>{label}</Text></>}

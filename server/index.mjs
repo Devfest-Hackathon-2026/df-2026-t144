@@ -4,18 +4,31 @@ import { computeRoutes, loadCatalog, RouteError } from './routes.mjs';
 import { createGemini } from './gemini.mjs';
 import { createTeaser, interpretInterest, MAX_IMAGE_BASE64, recognizeSpot } from './ai.mjs';
 import { createStaticHandler } from './static.mjs';
-import { dailyLimit, paidApiDeadline, paidApiOpen } from './paid.mjs';
+import { dailyLimit, PAID_API_MAX_PER_DAY, paidApiDeadline, paidApiOpen } from './paid.mjs';
 
 function positiveInteger(value, fallback, max) {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 ? Math.min(number, max) : fallback;
 }
 
+// "A day" for the call ceilings is a calendar day in Japan (UTC+9, no DST),
+// so counts reset at midnight JST rather than at 09:00 JST.
+export function japanDay(ms) {
+  return new Date(ms + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/** Per-feature share of the Gemini ceiling. Default 15, never above the overall 50. */
+export const FEATURE_GEMINI_DEFAULT = 15;
+function featureLimit(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? Math.min(number, PAID_API_MAX_PER_DAY) : FEATURE_GEMINI_DEFAULT;
+}
+
 function dailyCounter(now, max, code, message) {
-  let day = new Date(now()).toISOString().slice(0, 10);
+  let day = japanDay(now());
   let count = 0;
   return () => {
-    const today = new Date(now()).toISOString().slice(0, 10);
+    const today = japanDay(now());
     if (today !== day) { day = today; count = 0; }
     if (count >= max) throw new RouteError(429, code, message);
     count += 1;
@@ -67,9 +80,15 @@ export function createHandler({ catalog, env = process.env, fetchImpl = fetch, n
   // Count every Gemini call against the daily ceiling. A refused call makes the
   // AI helpers fall back to fixed text instead of failing the request.
   // After the window closes, `enabled` turns false so callers skip Gemini.
-  const countedGemini = gemini?.enabled
-    ? { ...gemini, get enabled() { return paidOpen(); }, generateJson: async (args) => { beforeGeminiCall(); return gemini.generateJson(args); } }
-    : gemini;
+  // The teaser runs on its own whenever a discovered spot is opened, so it and
+  // the interest reader each get a smaller share (15 by default). The photo
+  // reader, the live demo's key step, has no share and keeps at least 20 calls.
+  const counted = (beforeFeatureCall = () => {}) => (gemini?.enabled
+    ? { ...gemini, get enabled() { return paidOpen(); }, generateJson: async (args) => { beforeFeatureCall(); beforeGeminiCall(); return gemini.generateJson(args); } }
+    : gemini);
+  const countedGemini = counted();
+  const teaserGemini = counted(dailyCounter(now, featureLimit(env.MAX_TEASER_CALLS_PER_DAY), 'TEASER_DAILY_LIMIT', '本日の一言の上限に達しました。'));
+  const interestGemini = counted(dailyCounter(now, featureLimit(env.MAX_INTEREST_CALLS_PER_DAY), 'INTEREST_DAILY_LIMIT', '本日の分類の上限に達しました。'));
   const routesKey = () => (paidOpen() ? env.GOOGLE_ROUTES_API_KEY : undefined);
   const inFlight = { routes: 0, ai: 0 };
   const endpoints = {
@@ -77,8 +96,8 @@ export function createHandler({ catalog, env = process.env, fetchImpl = fetch, n
       if (env.GOOGLE_ROUTES_API_KEY && !paidOpen()) throw closed();
       return computeRoutes(input, { catalog, apiKey: env.GOOGLE_ROUTES_API_KEY, fetchImpl, beforeGoogleCall });
     } },
-    '/v1/interests': { pool: 'ai', maxInFlight: 4, minute: aiMinute, run: (input) => interpretInterest(input, { catalog, gemini: countedGemini }) },
-    '/v1/teaser': { pool: 'ai', maxInFlight: 4, minute: aiMinute, run: (input) => createTeaser(input, { catalog, gemini: countedGemini }) },
+    '/v1/interests': { pool: 'ai', maxInFlight: 4, minute: aiMinute, run: (input) => interpretInterest(input, { catalog, gemini: interestGemini }) },
+    '/v1/teaser': { pool: 'ai', maxInFlight: 4, minute: aiMinute, run: (input) => createTeaser(input, { catalog, gemini: teaserGemini }) },
     // Photos are the only large bodies; they go to Gemini and are never written anywhere.
     '/v1/recognize': { pool: 'ai', maxInFlight: 4, minute: aiMinute, maxBytes: MAX_IMAGE_BASE64 + 1024, run: (input) => recognizeSpot(input, { catalog, gemini: countedGemini }) },
   };

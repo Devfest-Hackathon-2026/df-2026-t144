@@ -130,7 +130,7 @@ export default function CameraScan({ spot, eligible, camera, saving, loaded, onD
         <Text style={[t.note14N150, { color: c.mist }]}>{on ? '止める' : 'カメラ'}</Text>
       </View>
       <View style={s.center}>
-        <Pressable accessibilityRole="button" accessibilityLabel={shutterLabel} accessibilityState={{ disabled: shutterDisabled, busy: busy || saving }} disabled={shutterDisabled} onPress={() => (on ? void shoot() : onDiscover())}
+        <Pressable accessibilityRole="button" accessibilityLabel={shutterLabel} accessibilityState={{ disabled: shutterDisabled, busy: busy || saving }} aria-disabled={shutterDisabled} aria-busy={busy || saving} disabled={shutterDisabled} onPress={() => (on ? void shoot() : onDiscover())}
           style={({ pressed }) => [s.shutter, shutterDisabled && s.shutterOff, pressed && { transform: [{ scale: .94 }] }]}>
           {busy || saving ? <ActivityIndicator color={on ? c.white : c.red} /> : <View style={[s.shutterInner, on && s.shutterInnerCamera, shutterDisabled && { backgroundColor: c.line }]} />}
         </Pressable>

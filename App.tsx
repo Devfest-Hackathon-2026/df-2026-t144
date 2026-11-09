@@ -16,7 +16,7 @@ import { addDiscovery, createDemoRoutes, distanceMeters, formatDistance, getArea
 import { pickStory, rankSpots, topicScore } from './src/interests';
 import { useLocation } from './src/useLocation';
 import { fetchRoutes } from './src/routesClient';
-import { apiConfigured } from './src/apiClient';
+import { apiBaseUrl, apiConfigured } from './src/apiClient';
 import { colors as c, radius, text as t } from './src/theme';
 import { Burst, Button, Icon, QPin, Shards, Skyline, Slant, Tag, installWebStyles } from './src/ui';
 import type { Budget, Discovery, LocationFix, Mode, RouteOption, Spot } from './src/types';
@@ -29,6 +29,11 @@ const cardNumber = (spot: Spot) => SPOTS.findIndex(item => item.id === spot.id) 
 // Straight-line estimate at 80 m/min, labelled "約". Not a route time.
 const walkMinutes = (a: Spot, b: Spot) => Math.max(1, Math.round(distanceMeters(a.coordinate, b.coordinate) / 80));
 type Tab = 'walk' | 'book' | 'me';
+/** Link added to shared posts so readers can open the app: this page on the web, the API host (same Cloud Run service) in the native app. HTTPS only, so dev URLs are never shared. */
+function shareUrl(): string {
+  const candidate = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : apiBaseUrl;
+  return /^https:\/\//.test(candidate) ? candidate : '';
+}
 
 export default function App() {
   // Native needs the display font loaded first; web gets it from Google Fonts.
@@ -125,7 +130,7 @@ function Michi() {
     try { await Linking.openURL(url); } catch { setNotice('出典を開けませんでした。ネット接続を確認してください。'); }
   }
   async function share(spot: Spot) {
-    const message = `MICHI?で「${spot.name}」を発見！ いつもの道に、まだ知らない物語がある。 #MICHI #ミチハテナ #京都`;
+    const message = `MICHI?で「${spot.name}」を発見！ いつもの道に、まだ知らない物語がある。${shareUrl() ? ` ${shareUrl()}` : ''} #MICHI #ミチハテナ #京都`;
     try { await Share.share({ message }); }
     catch {
       try { await Linking.openURL(`https://x.com/intent/post?text=${encodeURIComponent(message)}`); }
@@ -173,14 +178,14 @@ function Michi() {
           </View>
           <View style={s.modeSwitch} accessibilityRole="radiogroup" accessibilityLabel="使い方">{(['demo', 'gps'] as Mode[]).map(value => {
             const active = mode === value;
-            return <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={() => changeMode(value)} style={[s.modeItem, active && s.modeActive]}>
+            return <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: active }} aria-checked={active} onPress={() => changeMode(value)} style={[s.modeItem, active && s.modeActive]}>
               <Text style={[active ? t.note14B150 : t.note14N150, { color: active ? c.navy : c.mist }]}>{value === 'demo' ? 'デモ' : '現地'}</Text>
             </Pressable>;
           })}</View>
         </View>
         <View style={s.tabs} accessibilityRole="tablist">{([{ id: 'walk', label: '探索', icon: 'map' }, { id: 'book', label: '図鑑', icon: 'book' }, { id: 'me', label: 'マイページ', icon: 'user' }] as const).map(item => {
           const active = tab === item.id;
-          return <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => setTab(item.id)} style={[s.tab, active && s.tabActive]}>
+          return <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: active }} aria-selected={active} onPress={() => setTab(item.id)} style={[s.tab, active && s.tabActive]}>
             <View style={s.unskew}><Icon name={item.icon} color={active ? c.white : c.mist} size={18} /><Text style={[active ? t.note14B150 : t.note14N150, { color: active ? c.white : c.mist }]}>{item.label}</Text></View>
           </Pressable>;
         })}</View>
@@ -194,11 +199,11 @@ function Michi() {
               <Icon name="pin" color={c.navy} size={20} /><Text style={[t.std16B170, { color: c.navy, flex: 1 }]} numberOfLines={1}>目的地：{destination.name}</Text><Text style={[t.note14B150, { color: c.red }]}>変更</Text>
             </Pressable>
             {walking ? <View style={s.compareRow}><Text style={[t.std16B170, { color: c.navy }]}>{routeCompleted ? 'このルートの「？」をすべて発見' : `発見 ${progress} / ${route?.spotIds.length ?? 0}`}</Text></View> : <>
-              {direct && <Pressable accessibilityRole="radio" accessibilityState={{ checked: route?.kind === 'direct' }} onPress={() => setSelectedKind('direct')} style={[s.compareRow, route?.kind === 'direct' && s.compareDirectActive]}>
+              {direct && <Pressable accessibilityRole="radio" accessibilityState={{ checked: route?.kind === 'direct' }} aria-checked={route?.kind === 'direct'} onPress={() => setSelectedKind('direct')} style={[s.compareRow, route?.kind === 'direct' && s.compareDirectActive]}>
                 <Text style={[t.std16N170, { color: c.navy, width: 96 }]}>通常ルート</Text><Text style={[t.std16B170, { color: c.navy }]}>{minute(direct.totalSeconds)}分</Text>
                 {route?.kind === 'direct' && <View style={{ marginLeft: 'auto' }}><Icon name="check" color={c.navy} size={18} /></View>}
               </Pressable>}
-              {discoveryRoute && <Pressable accessibilityRole="radio" accessibilityState={{ checked: route?.kind === 'discovery' }} onPress={() => setSelectedKind('discovery')} style={[s.compareRow, s.compareDiscovery, route?.kind !== 'discovery' && s.compareDiscoveryIdle]}>
+              {discoveryRoute && <Pressable accessibilityRole="radio" accessibilityState={{ checked: route?.kind === 'discovery' }} aria-checked={route?.kind === 'discovery'} onPress={() => setSelectedKind('discovery')} style={[s.compareRow, s.compareDiscovery, route?.kind !== 'discovery' && s.compareDiscoveryIdle]}>
                 <Icon name="sparkle" color={c.white} size={14} /><Text style={[t.std16B170, { color: c.white, width: 82 }]}>発見ルート</Text><Text style={[t.std16B170, { color: c.white }]}>{minute(discoveryRoute.totalSeconds)}分（+{minute(discoveryRoute.extraSeconds)}分）</Text>
                 {route?.kind === 'discovery' && <View style={{ marginLeft: 'auto' }}><Icon name="check" color={c.white} size={18} /></View>}
               </Pressable>}
@@ -247,7 +252,7 @@ function Michi() {
             <Text style={[t.std18B160, { color: c.white }]}>寄り道できる時間</Text>
             <View style={s.choiceRow} accessibilityRole="radiogroup">{([5, 10] as Budget[]).map(value => {
               const active = budget === value;
-              return <Pressable key={value} accessibilityRole="radio" accessibilityLabel={`追加${value}分まで`} accessibilityState={{ checked: active }} onPress={() => setBudget(value)} style={[s.choice, active && s.choiceActive]}>
+              return <Pressable key={value} accessibilityRole="radio" accessibilityLabel={`追加${value}分まで`} accessibilityState={{ checked: active }} aria-checked={active} onPress={() => setBudget(value)} style={[s.choice, active && s.choiceActive]}>
                 <View style={s.unskew}>{active && <Icon name="check" color={c.white} size={18} />}<Text style={[t.std16B170, { color: active ? c.white : c.mist }]}>＋{value}分まで</Text></View>
               </Pressable>;
             })}</View>
@@ -324,7 +329,7 @@ function Michi() {
           <Text style={[t.std16N170, { color: c.mist }]}>体験デモは位置情報なしで、会場からでも全部の流れを試せます。現地で歩くは、GPSで実際に近づいたときだけ発見できます。記録は別々に残ります。</Text>
           <View style={s.choiceRow} accessibilityRole="radiogroup">{(['demo', 'gps'] as Mode[]).map(value => {
             const active = mode === value;
-            return <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: active }} onPress={() => changeMode(value)} style={[s.choice, active && s.choiceActive]}>
+            return <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: active }} aria-checked={active} onPress={() => changeMode(value)} style={[s.choice, active && s.choiceActive]}>
               <View style={s.unskew}>{active && <Icon name="check" size={18} />}<Text style={[t.std16B170, { color: active ? c.white : c.mist }]}>{value === 'demo' ? '体験デモ' : '現地で歩く'}</Text></View>
             </Pressable>;
           })}</View>
@@ -356,7 +361,7 @@ function Michi() {
       <View style={s.scrim}><View style={s.sheet}>
         <View style={s.sheetHeader}><Slant color={c.red}><Text style={[t.display18, { color: c.white }]} accessibilityRole="header">目的地を選ぶ</Text></Slant><Pressable accessibilityRole="button" accessibilityLabel="閉じる" onPress={() => setDestinationPicker(false)} style={s.close}><Icon name="close" /></Pressable></View>
         <Text style={[t.std16N170, { color: c.mist }]}>京都・三条周辺の2か所から選べます。</Text>
-        {DESTINATIONS.map(d => <Pressable accessibilityRole="radio" accessibilityState={{ checked: d.id === destinationId }} key={d.id} onPress={() => { setDestinationId(d.id); setDestinationPicker(false); }} style={({ pressed }) => [s.row, pressed && s.pressed]}>
+        {DESTINATIONS.map(d => <Pressable accessibilityRole="radio" accessibilityState={{ checked: d.id === destinationId }} aria-checked={d.id === destinationId} key={d.id} onPress={() => { setDestinationId(d.id); setDestinationPicker(false); }} style={({ pressed }) => [s.row, pressed && s.pressed]}>
           <Icon name="pin" color={c.redText} /><View style={{ flex: 1 }}><Text style={[t.std16B170, { color: c.white }]}>{d.name}</Text><Text style={[t.note14N150, { color: c.muted }]}>{d.subtitle}</Text></View>{d.id === destinationId && <Icon name="check" color={c.white} />}
         </Pressable>)}
         <SafeAreaView edges={['bottom']} />

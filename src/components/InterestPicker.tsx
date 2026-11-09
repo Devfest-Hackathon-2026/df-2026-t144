@@ -60,7 +60,7 @@ export default function InterestPicker({ topics, selected, onChange }: Props) {
     </View>}
     <View style={s.chips}>{topics.map((topic) => {
       const active = selected.includes(topic.id);
-      return <Pressable key={topic.id} accessibilityRole="checkbox" accessibilityState={{ checked: active }} accessibilityLabel={topic.label}
+      return <Pressable key={topic.id} accessibilityRole="checkbox" accessibilityState={{ checked: active }} aria-checked={active} accessibilityLabel={topic.label}
         onPress={() => { setMessage(null); onChange(toggleTopic(selected, topic.id)); }} style={[s.chip, active && s.chipActive]}>
         {active && <Icon name="check" color={c.white} size={16} />}
         <Text style={[active ? t.note14B150 : t.note14N150, { color: active ? c.white : c.mist }]}>#{topic.label}</Text>
