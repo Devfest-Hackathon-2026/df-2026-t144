@@ -9,11 +9,12 @@ import Art from './src/components/Art';
 import CameraScan from './src/components/CameraScan';
 import DesktopIntro from './src/components/DesktopIntro';
 import DiscoveryCard from './src/components/DiscoveryCard';
-import DiscoveryMap from './src/components/Map';
+import DiscoveryMap, { useGoogleMapAvailable } from './src/components/Map';
 import InterestPicker, { InterestExamples } from './src/components/InterestPicker';
 import RelatedTeaser from './src/components/RelatedTeaser';
 import { SPOTS, DESTINATIONS, DEMO_ORIGIN, STORIES, TOPICS } from './src/data/spots';
-import { addDiscovery, createDemoRoutes, distanceMeters, formatDistance, getAreaStatus, getCameraUnlockState, getUnlockState, sanitizeDiscoveries } from './src/domain';
+import { addDiscovery, createDemoRoutes, distanceMeters, formatDistance, getAreaStatus, getCameraUnlockState, getUnlockState, pathBetween, pointAlong, sanitizeDiscoveries } from './src/domain';
+import { useRoadPath } from './src/useRoadPath';
 import { nextUndiscovered, pickStory, rankSpots, topicScore } from './src/interests';
 import { useLocation } from './src/useLocation';
 import { fetchRoutes } from './src/routesClient';
@@ -78,6 +79,8 @@ function Michi() {
   const demoRoutes = useMemo(() => createDemoRoutes(destination, budget, SPOTS, DEMO_ORIGIN, topicIds), [destinationId, budget, topicIds]);
   const routes = mode === 'demo' ? demoRoutes : googleRoutes ?? [];
   const route = routes.find(r => r.kind === selectedKind) ?? routes[0] ?? null;
+  // On a Google map the demo route follows the roads (same stops and times).
+  const mapRoute = useRoadPath(mode === 'demo' ? route : null, DEMO_ORIGIN, destinationId, useGoogleMapAvailable()) ?? route;
   const direct = routes.find(r => r.kind === 'direct');
   const discoveryRoute = routes.find(r => r.kind === 'discovery');
   const modeDiscoveries = discoveries.filter(d => d.mode === mode);
@@ -171,10 +174,12 @@ function Michi() {
     setWalkTarget(spot);
     const duration = Math.min(3500, Math.max(1800, meters * 18));
     const started = Date.now();
+    // Walk along the drawn line when it follows the roads; otherwise straight.
+    const path = mapRoute?.source === 'google' ? pathBetween(mapRoute.coordinates, from, to) : [from, to];
     walkTimer.current = setInterval(() => {
       const progress = Math.min(1, (Date.now() - started) / duration);
       const eased = progress < 0.5 ? 2 * progress * progress : 1 - (-2 * progress + 2) ** 2 / 2;
-      setDemoPosition({ latitude: from.latitude + (to.latitude - from.latitude) * eased, longitude: from.longitude + (to.longitude - from.longitude) * eased });
+      setDemoPosition(pointAlong(path, eased));
       if (progress >= 1) { setNow(Date.now()); openSpot(spot.id); }
     }, 80);
   }
@@ -223,7 +228,7 @@ function Michi() {
 
       {tab === 'walk' ? <ScrollView ref={walkScroll} style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={[s.mapBlock, { height: mapHeight }]}>
-          <DiscoveryMap spots={visibleSpots} discoveredIds={discoveredIds} route={route} destination={destination} position={currentFix} selectedId={selectedId ?? undefined} onSelect={id => openSpot(id)} />
+          <DiscoveryMap spots={visibleSpots} discoveredIds={discoveredIds} route={mapRoute} destination={destination} position={currentFix} selectedId={selectedId ?? undefined} onSelect={id => openSpot(id)} />
           <View style={s.routeCard}>
             <Pressable accessibilityRole="button" accessibilityLabel={`目的地 ${destination.name}。変更する`} onPress={() => setDestinationPicker(true)} style={s.destinationRow}>
               <Icon name="pin" color={c.navy} size={20} /><Text style={[t.std16B170, { color: c.navy, flex: 1 }]} numberOfLines={1}>目的地：{destination.name}</Text><Text style={[t.note14B150, { color: c.red }]}>変更</Text>
@@ -470,7 +475,7 @@ function SpotDetail({ spot, mode, discovered, fix, saving, loaded, onClose, onDi
       </Pressable>; })}
       <Text style={[t.std16B170, { color: c.white, marginTop: 8 }]}>出典</Text>
       {spot.sources.map(source => <Pressable key={source.url} accessibilityRole="link" accessibilityLabel={`${source.title}（外部サイト）`} onPress={() => onSource(source.url)} style={s.textButton}><Text style={[t.std16N170, s.link]}>{source.title}（外部サイト）</Text></Pressable>)}
-      <Text style={[t.note14N150, { color: c.muted }]}>{spot.coordinateNote}</Text>
+      {__DEV__ && spot.coordinateNote ? <Text style={[t.note14N150, { color: c.muted }]}>{spot.coordinateNote}</Text> : null}
       <Button label="閉じる" variant="ghost" onPress={onClose} />
       <SafeAreaView edges={['bottom']} />
     </ScrollView>

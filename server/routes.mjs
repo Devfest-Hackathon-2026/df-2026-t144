@@ -203,3 +203,29 @@ export async function computeRoutes(input, {
     warnings: [...new Set([WALK_WARNING, ...direct.warnings, ...(best?.warnings ?? [])])],
   };
 }
+
+/**
+ * Road geometry for a stop order the app already chose (the reproducible demo
+ * route). One Routes API call; times stay the demo's fixtures, so only the line
+ * changes. The polyline may only be drawn on a Google map, and the app keeps it
+ * in memory for the session only.
+ */
+export async function computePath(input, {
+  catalog,
+  apiKey,
+  fetchImpl = fetch,
+  beforeGoogleCall = () => {},
+  timeoutMs = 8_000,
+}) {
+  const { origin, destination } = validateInput({ ...input, budgetMinutes: 5 }, catalog);
+  const ids = input.spotIds;
+  if (!Array.isArray(ids) || ids.length > 3 || new Set(ids).size !== ids.length) {
+    throw new RouteError(400, 'INVALID_STOPS', '立ち寄る「？」の指定が不正です。');
+  }
+  const stops = ids.map((id) => catalog.spots.find((spot) => spot.id === id));
+  if (stops.some((spot) => !spot)) throw new RouteError(400, 'INVALID_STOPS', '登録された「？」を指定してください。');
+  if (!apiKey) throw new RouteError(503, 'NOT_CONFIGURED', 'Google Routes API が未設定です。');
+  const route = await requestWalkingRoute({ origin, destination: destination.coordinate, stops, apiKey, fetchImpl, beforeGoogleCall, timeoutMs });
+  if (!route) throw new RouteError(422, 'NO_ROUTE', '徒歩経路が見つかりませんでした。');
+  return { coordinates: route.coordinates, attribution: 'Google Maps' };
+}

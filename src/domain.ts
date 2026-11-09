@@ -198,3 +198,35 @@ export function getAreaStatus(fix: LocationFix | null | undefined, spots: Spot[]
 export function formatDistance(meters: number): string {
   return meters < 1_000 ? `${Math.round(meters / 10) * 10}m` : meters < 100_000 ? `${(meters / 1_000).toFixed(1)}km` : `${Math.round(meters / 1_000)}km`;
 }
+
+/** Part of `path` from the point nearest `from` to the point nearest `to` (searching after `from`), with both ends attached. */
+export function pathBetween(path: Coordinate[], from: Coordinate, to: Coordinate): Coordinate[] {
+  const nearest = (target: Coordinate, start: number) => {
+    let best = start;
+    for (let index = start; index < path.length; index += 1) {
+      if (distanceMeters(path[index], target) < distanceMeters(path[best], target)) best = index;
+    }
+    return best;
+  };
+  if (path.length < 2) return [from, to];
+  const first = nearest(from, 0);
+  const last = nearest(to, first);
+  return [from, ...path.slice(first, last + 1), to];
+}
+
+/** The point at `fraction` (0..1) of the walking distance along `path`. */
+export function pointAlong(path: Coordinate[], fraction: number): Coordinate {
+  if (path.length === 0) throw new Error('empty path');
+  const lengths = path.slice(1).map((point, index) => distanceMeters(path[index], point));
+  const total = lengths.reduce((sum, value) => sum + value, 0);
+  let remaining = Math.min(1, Math.max(0, fraction)) * total;
+  for (let index = 0; index < lengths.length; index += 1) {
+    if (remaining <= lengths[index] && lengths[index] > 0) {
+      const ratio = remaining / lengths[index];
+      const a = path[index]; const b = path[index + 1];
+      return { latitude: a.latitude + (b.latitude - a.latitude) * ratio, longitude: a.longitude + (b.longitude - a.longitude) * ratio };
+    }
+    remaining -= lengths[index];
+  }
+  return path[path.length - 1];
+}

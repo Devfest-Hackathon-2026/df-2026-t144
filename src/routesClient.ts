@@ -12,3 +12,12 @@ export async function fetchRoutes(origin: Coordinate, destinationId: string, bud
   if (!Array.isArray(routes) || !routes.length || routes.some((r) => r.source !== 'google' || !Number.isFinite(r.totalSeconds) || !Array.isArray(r.spotIds) || !Array.isArray(r.coordinates))) throw new Error('経路の応答を確認できませんでした。');
   return { routes, warnings: Array.isArray(data.warnings) ? data.warnings.filter((v: unknown): v is string => typeof v === 'string') : [] };
 }
+
+/** Road line for the demo's fixed stop order. Only for drawing on a Google map. */
+export async function fetchPath(origin: Coordinate, destinationId: string, spotIds: string[]): Promise<Coordinate[]> {
+  const data = await postJson<{ coordinates?: unknown }>('/v1/path', { origin, destinationId, spotIds }, 15_000);
+  const coordinates = data.coordinates;
+  if (!Array.isArray(coordinates) || coordinates.length < 2
+    || coordinates.some((p) => !p || !Number.isFinite(p.latitude) || !Number.isFinite(p.longitude))) throw new Error('経路の応答を確認できませんでした。');
+  return coordinates as Coordinate[];
+}

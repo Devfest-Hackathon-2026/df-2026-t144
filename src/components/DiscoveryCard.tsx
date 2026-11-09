@@ -19,10 +19,10 @@ export default function DiscoveryCard({ spot, number, discoveredAt, compact = fa
   const date = discoveredAt ? new Date(discoveredAt) : null;
   const dateText = date ? `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}` : '';
   return <View style={[s.card, compact && s.compact]} accessibilityLabel={`発見カード No.${String(number).padStart(3, '0')} ${spot.name}。${spot.tagline}`}>
-    <View style={s.inner}>
+    <View style={[s.inner, compact && s.innerCompact]}>
       {!compact && <View style={s.maples} pointerEvents="none"><Maple size={30} rotate={-20} /><Maple size={20} rotate={25} opacity={0.8} /></View>}
       <View style={s.number}><Text style={[t.note14B150, { color: c.navy }]}>No.{String(number).padStart(3, '0')}</Text></View>
-      <Text style={[compact ? t.display18 : t.display26, s.title]} numberOfLines={2}>{spot.name}</Text>
+      <Text style={[compact ? t.display16 : t.display26, s.title]} numberOfLines={2}>{spot.name}</Text>
       {!compact && <Text style={[t.note14N150, s.subtitle]}>— {spot.tagline} —</Text>}
       <View style={[s.art, compact && { height: 84 }]}><Art category={spot.category} height={compact ? 84 : 150} /></View>
       <View style={s.footer}>
@@ -39,6 +39,7 @@ export default function DiscoveryCard({ spot, number, discoveredAt, compact = fa
 const s = StyleSheet.create({
   card: { backgroundColor: c.paper, borderRadius: radius.m, padding: 8, borderWidth: 2, borderColor: c.paperDeep },
   compact: { padding: 4 },
+  innerCompact: { padding: 8 },
   inner: { borderWidth: 1.5, borderColor: '#B89B6E', borderRadius: radius.s, padding: 12, gap: 6 },
   maples: { position: 'absolute', top: -6, right: -4, flexDirection: 'row', alignItems: 'flex-start' },
   number: { alignSelf: 'flex-start', backgroundColor: c.gold, borderRadius: radius.full, paddingHorizontal: 10 },

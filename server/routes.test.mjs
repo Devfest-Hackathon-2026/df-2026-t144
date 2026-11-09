@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
-import { computeRoutes, decodePolyline, loadCatalog, validateInput, WALK_WARNING } from './routes.mjs';
+import { computePath, computeRoutes, decodePolyline, loadCatalog, validateInput, WALK_WARNING } from './routes.mjs';
 import { createHandler } from './index.mjs';
 
 const catalog = await loadCatalog();
@@ -208,4 +208,34 @@ test('health endpoint does not call Google and reports configured status only', 
   const result = await invoke(handler, { method: 'GET', path: '/health' });
   assert.deepEqual(result.json, { ok: true, routesConfigured: false, geminiConfigured: false, paidApiUntil: null });
   assert.equal(calls, 0);
+});
+
+test('demo path asks Google once for the given stop order and validates the stops', async () => {
+  const bodies = [];
+  const fetchImpl = async (_url, init) => { bodies.push(JSON.parse(init.body)); return google(600); };
+  const pathInput = { origin: catalog.demoOrigin, destinationId: 'city-hall', spotIds: ['sanjo-giboshi', 'ikedaya'] };
+  const result = await computePath(pathInput, { catalog, apiKey: 'test', fetchImpl });
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0].intermediates.length, 2);
+  assert.equal(bodies[0].travelMode, 'WALK');
+  assert.equal(result.coordinates.length, 3);
+  for (const spotIds of [['nowhere'], ['ikedaya', 'ikedaya'], 'ikedaya', ['a', 'b', 'c', 'd']]) {
+    await assert.rejects(computePath({ ...pathInput, spotIds }, { catalog, apiKey: 'test', fetchImpl }), { code: 'INVALID_STOPS' });
+  }
+  await assert.rejects(computePath({ ...pathInput, origin: { latitude: 0, longitude: 0 } }, { catalog, apiKey: 'test', fetchImpl }), { code: 'OUTSIDE_AREA' });
+  assert.equal(bodies.length, 1);
+});
+
+test('demo paths stop at 30 a day so live routes keep the rest of the 50', async () => {
+  let calls = 0;
+  const handler = createHandler({
+    catalog, env: { GOOGLE_ROUTES_API_KEY: 'test', MAX_REQUESTS_PER_MINUTE: '120', PAID_API_UNTIL: OPEN },
+    fetchImpl: async () => { calls += 1; return google(600); }, now: () => 0,
+  });
+  const body = { origin: catalog.demoOrigin, destinationId: 'city-hall', spotIds: ['ikedaya'] };
+  let last;
+  for (let index = 0; index < 40 && last?.status !== 429; index += 1) last = await invoke(handler, { path: '/v1/path', body });
+  assert.equal(last.json.error.code, 'PATH_DAILY_LIMIT');
+  assert.equal(calls, 30);
+  assert.equal((await invoke(handler)).status, 200);
 });

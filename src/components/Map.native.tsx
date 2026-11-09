@@ -61,3 +61,8 @@ const styles = StyleSheet.create({
   dot: { width: 16, height: 16, borderRadius: 8, backgroundColor: c.user, borderWidth: 3, borderColor: c.white },
   fallback: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: c.navyCard, gap: 8, borderRadius: radius.m },
 });
+
+/** Android, or an iOS build with Google Maps. Expo Go on iOS shows Apple Maps. */
+export function useGoogleMapAvailable() {
+  return Platform.OS === 'android' || (Constants.executionEnvironment !== 'storeClient' && Boolean(Constants.expoConfig?.extra?.iosGoogleMapsEnabled));
+}

@@ -51,6 +51,8 @@ export const text = {
   display26: display(26),
   display22: display(22),
   display18: display(18, 1.4),
+  // Card names in the two-column collection, so an 8-character name fits on one line.
+  display16: display(16, 1.4),
   std20B150: body(20, true, 1.5),
   std18B160: body(18, true, 1.6),
   std16B170: body(16, true, 1.7),

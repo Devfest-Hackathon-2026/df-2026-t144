@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { addDiscovery, createDemoRoutes, distanceMeters, formatDistance, getAreaStatus, getUnlockState, sanitizeDiscoveries } from '../src/domain.ts';
+import { addDiscovery, createDemoRoutes, distanceMeters, formatDistance, getAreaStatus, getUnlockState, pathBetween, pointAlong, sanitizeDiscoveries } from '../src/domain.ts';
 import type { Coordinate, Destination, Discovery, LocationFix, Spot } from '../src/types.ts';
 
 const NOW = Date.parse('2026-11-08T03:00:00.000Z');
@@ -159,4 +159,20 @@ test('area status flags fixes far from every spot, even with poor accuracy', () 
   assert.equal(formatDistance(1_234), '1.2km');
   assert.equal(formatDistance(364_000), '364km');
   assert.equal(formatDistance(44), '40m');
+});
+
+test('demo walk follows the road line between two stops and moves by distance', () => {
+  const a = { latitude: 35, longitude: 135 };
+  const corner = { latitude: 35.001, longitude: 135 };
+  const b = { latitude: 35.001, longitude: 135.001 };
+  const beyond = { latitude: 35.002, longitude: 135.001 };
+  const road = [a, corner, b, beyond];
+  assert.deepEqual(pathBetween(road, a, b), [a, a, corner, b, b]);
+  assert.deepEqual(pathBetween([], a, b), [a, b]);
+  assert.deepEqual(pointAlong(road, 0), a);
+  assert.deepEqual(pointAlong(road, 1), beyond);
+  const total = distanceMeters(a, corner) + distanceMeters(corner, b);
+  const half = pointAlong([a, corner, b], 0.5);
+  assert.equal(half.longitude, 135, 'halfway is still on the longer first leg, not cut across the block');
+  assert.ok(Math.abs(distanceMeters(a, half) - total / 2) < 1);
 });

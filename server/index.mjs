@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { pathToFileURL } from 'node:url';
-import { computeRoutes, loadCatalog, RouteError } from './routes.mjs';
+import { computePath, computeRoutes, loadCatalog, RouteError } from './routes.mjs';
 import { createGemini } from './gemini.mjs';
 import { createTeaser, interpretInterest, MAX_IMAGE_BASE64, recognizeSpot } from './ai.mjs';
 import { createStaticHandler } from './static.mjs';
@@ -89,12 +89,20 @@ export function createHandler({ catalog, env = process.env, fetchImpl = fetch, n
   const countedGemini = counted();
   const teaserGemini = counted(dailyCounter(now, featureLimit(env.MAX_TEASER_CALLS_PER_DAY), 'TEASER_DAILY_LIMIT', '本日の一言の上限に達しました。'));
   const interestGemini = counted(dailyCounter(now, featureLimit(env.MAX_INTEREST_CALLS_PER_DAY), 'INTEREST_DAILY_LIMIT', '本日の分類の上限に達しました。'));
+  // Road lines for the demo route come out of the same 50 Routes calls, capped
+  // at 30 so live GPS routing keeps at least 20. Over the cap the app keeps
+  // the straight sketch line.
+  const pathCounter = dailyCounter(now, Math.min(30, PAID_API_MAX_PER_DAY), 'PATH_DAILY_LIMIT', '本日のデモ経路の上限に達しました。');
   const routesKey = () => (paidOpen() ? env.GOOGLE_ROUTES_API_KEY : undefined);
   const inFlight = { routes: 0, ai: 0 };
   const endpoints = {
     '/v1/routes': { pool: 'routes', maxInFlight: 2, minute: routeMinute, run: (input) => {
       if (env.GOOGLE_ROUTES_API_KEY && !paidOpen()) throw closed();
       return computeRoutes(input, { catalog, apiKey: env.GOOGLE_ROUTES_API_KEY, fetchImpl, beforeGoogleCall });
+    } },
+    '/v1/path': { pool: 'routes', maxInFlight: 2, minute: routeMinute, run: (input) => {
+      if (env.GOOGLE_ROUTES_API_KEY && !paidOpen()) throw closed();
+      return computePath(input, { catalog, apiKey: env.GOOGLE_ROUTES_API_KEY, fetchImpl, beforeGoogleCall: () => { if (!paidOpen()) throw closed(); pathCounter(); googleCounter(); } });
     } },
     '/v1/interests': { pool: 'ai', maxInFlight: 4, minute: aiMinute, run: (input) => interpretInterest(input, { catalog, gemini: interestGemini }) },
     '/v1/teaser': { pool: 'ai', maxInFlight: 4, minute: aiMinute, run: (input) => createTeaser(input, { catalog, gemini: teaserGemini }) },
