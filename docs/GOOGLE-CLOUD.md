@@ -1,6 +1,6 @@
 # Google Cloud 接続メモ
 
-この版は、APIキーなしでデモ体験を動かせます。Google Routes の実通信はキーを設定したときだけ行います。Google Cloudへのデプロイ、APIの有効化、課金設定、キー作成はまだ実施していません。
+この版は、APIキーなしでデモ体験を動かせます。Google Routes の実通信はキーを設定したときだけ行います。Google Cloudには11/9にデプロイ済み(公開URL https://michi-176224264627.asia-northeast1.run.app 、記録は [VERIFICATION.md](VERIFICATION.md))。
 
 ## 地図と経路計算は別の設定
 

@@ -2,6 +2,9 @@
 
 **いつもの道に、まだ知らない物語がある。**
 
+- デプロイした作品: https://michi-176224264627.asia-northeast1.run.app (体験デモは位置情報なしで最後まで動きます)
+- DevFest GDGoC Japan Hackathon 2026 チーム「Overcoding!」の提出物です。
+
 目的地へ向かう途中の「？」に近づき、街の物語を発見するモバイルアプリです。React Native / Expo SDK 58で、iOS・Androidを主対象にしています。今日のMVPは京都三条・高瀬川周辺を仮の対象地域として、発見から図鑑保存までを実装しています。
 
 ## まず動かす
