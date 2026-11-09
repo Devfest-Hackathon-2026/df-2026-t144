@@ -63,5 +63,5 @@ flowchart LR
 - [ ] 5か所の石碑・案内板の写真(現地で撮る)で `/v1/recognize` を試し、何枚で発見できたかを記録する。Regional Dayのデモ用に、石碑の写真を印刷しておく
 - [ ] iPhone Safari と Android Chrome でデプロイURLを開き、デモを最後まで通す
 - [ ] 現地(三条)で歩き、解放半径とGPS精度を記録。発見の瞬間を撮影する
-- [ ] [CREDITS.md](CREDITS.md) の「未確認」の利用条件を埋める
+- [x] [CREDITS.md](CREDITS.md) の「未確認」の利用条件を埋める(11/9。京都市・京都観光Navi・瑞泉寺の規定を確認)
 - [ ] 運営のOrganizationのリポジトリへpushする
