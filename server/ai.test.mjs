@@ -332,3 +332,27 @@ test('daily ceilings reset at midnight in Japan, not at 09:00 JST', async () => 
   clock = Date.parse('2026-11-14T08:59:00+09:00');
   assert.equal(await photo(), 429, 'still the same day in Japan before 09:00');
 });
+
+test('the statue spot unlocks from its stone marker text and stays hidden in teasers', async () => {
+  const image = 'A'.repeat(400);
+  // The marker is carved vertically; Gemini may split it into short lines.
+  const marker = fakeGemini(() => ({ texts: ['高山彦九', '郎先生', '皇居望拝', '之趾'], scene: '石標' }));
+  const hit = await recognizeSpot({ spotId: 'takayama-hikokuro', image }, { catalog, gemini: marker });
+  assert.equal(hit.matched, true);
+  assert.ok(!`${marker.calls[0].system}${marker.calls[0].prompt}`.includes('彦九郎'), 'the expected spot is not revealed to Gemini');
+  // The same photo must not unlock the bridge or the ekiden stone next to it.
+  for (const spotId of ['sanjo-giboshi', 'ekiden-monument']) {
+    assert.equal((await recognizeSpot({ spotId, image }, { catalog, gemini: fakeGemini(() => ({ texts: ['高山彦九郎先生皇居望拝之趾'], scene: '石標' })) })).matched, false, spotId);
+  }
+
+  const input = { fromSpotId: 'ekiden-monument', toSpotId: 'takayama-hikokuro', topicIds: ['people'] };
+  const fixed = catalog.spots.find((spot) => spot.id === 'ekiden-monument').relatedNotes['takayama-hikokuro'];
+  const words = catalog.spots.find((spot) => spot.id === 'takayama-hikokuro').spoilerWords;
+  assert.ok(!words.some((word) => fixed.includes(word)), 'the fixed note does not name the statue');
+  const spoiled = await createTeaser(input, { catalog, gemini: fakeGemini(() => ({ text: 'すぐそばに、高山彦九郎の像があります。', usedFactIds: ['takayama-hikokuro:f3'] })) });
+  assert.deepEqual(spoiled, { text: fixed, usedFactIds: [], source: 'fixed' });
+  const wrongYear = await createTeaser(input, { catalog, gemini: fakeGemini(() => ({ text: 'すぐそばに、1945年に一度姿を消した像があります。', usedFactIds: ['takayama-hikokuro:f4'] })) });
+  assert.equal(wrongYear.source, 'fixed');
+  const good = await createTeaser(input, { catalog, gemini: fakeGemini(() => ({ text: 'すぐそばに、1944年に一度姿を消し、1961年に戻ってきた像があります。', usedFactIds: ['takayama-hikokuro:f4'] })) });
+  assert.equal(good.source, 'gemini');
+});
