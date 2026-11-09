@@ -35,4 +35,4 @@ await saveStories(stories);
 const audit = auditStories(stories, catalog);
 console.log(`\nGemini呼び出し ${calls} / 上限 ${maxCalls}`);
 console.log(`下書き ${audit.counts.draft} / 照合済み ${audit.counts.verified} / 却下 ${audit.counts.rejected}(全${audit.pairs}組)`);
-console.log('src/data/stories.json を開き、出典と照合して reviewStatus と reviewedBy を書いてください。');
+console.log('`pnpm stories:review` で照合シートを出し、出典と見比べて verify / reject / edit で記録してください。');

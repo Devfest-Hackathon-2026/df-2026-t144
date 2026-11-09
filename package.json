@@ -13,7 +13,8 @@
     "server": "node --env-file-if-exists=.env server/index.mjs",
     "test:server": "node --test server/*.test.mjs",
     "stories:draft": "node --env-file-if-exists=.env scripts/draft-stories.mjs",
-    "stories:check": "node scripts/check-stories.mjs"
+    "stories:check": "node scripts/check-stories.mjs",
+    "stories:review": "node scripts/review-stories.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/dela-gothic-one": "0.4.1",

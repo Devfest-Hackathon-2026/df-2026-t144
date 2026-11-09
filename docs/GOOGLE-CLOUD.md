@@ -84,4 +84,4 @@ Cloud Runではサービスアカウントのトークンで `gemini-3.8-flash`(
 | `GET /v1/config` | — | `{ mapsApiKey }` | `null`(Web版は略図) |
 | `POST /v1/routes` | 従来の項目 + 任意の `topicIds` | 従来どおり | — |
 
-Geminiの出力は `server/ai.mjs` の `checkGeneratedText` で検査し、通らなければ捨てる。スポットの解説本文は事前生成と人の照合を経たものだけを出す(`pnpm stories:draft` → `src/data/stories.json` を照合 → `pnpm stories:check`)。
+Geminiの出力は `server/ai.mjs` の `checkGeneratedText` で検査し、通らなければ捨てる。スポットの解説本文は事前生成と人の照合を経たものだけを出す(`pnpm stories:draft` → `pnpm stories:review` で出典と照合 → `pnpm stories:check`)。

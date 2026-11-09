@@ -59,7 +59,12 @@ flowchart LR
 ## 11/10 17:00までに残る作業
 
 - [ ] GCPプロジェクトを用意してデプロイする([DEPLOY.md](DEPLOY.md))。予算アラートも同時に設定する
-- [ ] `pnpm stories:draft` で解説を下書きし、全件を出典と照合する
+- [ ] 解説を下書きし、全件を出典と照合する
+  1. Vertex AIを呼べる人が `pnpm stories:draft` を実行してpushする(5か所×視点で12組、Geminiを12回呼ぶ。`.env` に `GOOGLE_CLOUD_PROJECT` と `GEMINI_ACCESS_TOKEN`)
+  2. 照合する人が `pnpm stories:review` でシートを出す。本文の横に、使った事実と出典のリンクが並ぶ
+  3. 1本ずつ出典と見比べ、`pnpm stories:review verify <キー> --by 名前` で通す。直せない誤りは `reject <キー> --by 名前 --note 理由`、言い回しだけなら `edit <キー> --text 本文` で直してから通す。自動検査を通らない本文は通せない
+  4. 却下した組は、もう一度 `pnpm stories:draft` を実行すると下書きし直す
+  5. `pnpm stories:check` が通ることを確かめてpushする。表示される件数をピッチの「N本を照合し、M本を却下」に使う
 - [ ] 5か所の石碑・案内板の写真(現地で撮る)で `/v1/recognize` を試し、何枚で発見できたかを記録する。Regional Dayのデモ用に、石碑の写真を印刷しておく
 - [ ] iPhone Safari と Android Chrome でデプロイURLを開き、デモを最後まで通す
 - [ ] 現地(三条)で歩き、解放半径とGPS精度を記録。発見の瞬間を撮影する
