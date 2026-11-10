@@ -59,7 +59,7 @@
     "model": "gemini-3.8-flash",
     "generatedAt": "2026-11-09T16:35:58.928Z",
     "problems": [],
-    "reviewNote": "本文を人が修正(Claude Code(ChatGPTの指摘で言い回しを修正・未照合))",
+    "reviewNote": "照合前に、AIによる点検の指摘を受けて言い回しを修正",
     "reviewedBy": "関"
   },
   {
@@ -75,7 +75,7 @@
     "model": "gemini-3.8-flash",
     "generatedAt": "2026-11-09T16:36:07.811Z",
     "problems": [],
-    "reviewNote": "本文を人が修正(Claude Code(言い回しの修正のみ・未照合)) / 本文を人が修正(Claude Code(ChatGPTの指摘で言い回しを修正・未照合))",
+    "reviewNote": "照合前に言い回しを修正 / 照合前に、AIによる点検の指摘を受けて言い回しを修正",
     "reviewedBy": "関"
   },
   {
@@ -91,7 +91,7 @@
     "model": "gemini-3.8-flash",
     "generatedAt": "2026-11-09T16:36:16.704Z",
     "problems": [],
-    "reviewNote": "本文を人が修正(Claude Code(言い回しの修正のみ・未照合))",
+    "reviewNote": "照合前に言い回しを修正",
     "reviewedBy": "関"
   },
   {
@@ -123,7 +123,7 @@
     "model": "gemini-3.8-flash",
     "generatedAt": "2026-11-09T16:36:56.958Z",
     "problems": [],
-    "reviewNote": "本文を人が修正(Claude Code(言い回しの修正のみ・未照合)) / 本文を人が修正(Claude Code(ChatGPTの指摘で言い回しを修正・未照合))",
+    "reviewNote": "照合前に言い回しを修正 / 照合前に、AIによる点検の指摘を受けて言い回しを修正",
     "reviewedBy": "関"
   },
   {
@@ -139,7 +139,7 @@
     "model": "gemini-3.8-flash",
     "generatedAt": "2026-11-09T16:37:05.768Z",
     "problems": [],
-    "reviewNote": "本文を人が修正(Claude Code(言い回しの修正のみ・未照合))",
+    "reviewNote": "照合前に言い回しを修正",
     "reviewedBy": "関"
   },
   {
@@ -156,7 +156,7 @@
     "model": "gemini-3.8-flash",
     "generatedAt": "2026-11-09T16:37:15.919Z",
     "problems": [],
-    "reviewNote": "本文を人が修正(Claude Code(言い回しの修正のみ・未照合))",
+    "reviewNote": "照合前に言い回しを修正",
     "reviewedBy": "関"
   },
   {
@@ -189,7 +189,7 @@
     "model": "gemini-3.8-flash",
     "generatedAt": "2026-11-09T16:37:55.870Z",
     "problems": [],
-    "reviewNote": "本文を人が修正(Claude Code(言い回しの修正のみ・未照合))",
+    "reviewNote": "照合前に言い回しを修正",
     "reviewedBy": "関"
   },
   {
